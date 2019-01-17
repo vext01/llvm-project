@@ -18,6 +18,7 @@
 
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "WebAssembly.h"
+#include "WebAssemblyDebugValueManager.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
 #include "WebAssemblyUtilities.h"
@@ -262,6 +263,8 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
             .addImm(LocalId)
             .addReg(MI.getOperand(2).getReg());
 
+        WebAssemblyDebugValueManager(&MI).replaceWithLocal(LocalId);
+
         MI.eraseFromParent();
         Changed = true;
         continue;
@@ -291,6 +294,9 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
           } else {
             unsigned LocalId = getLocalId(Reg2Local, CurLocal, OldReg);
             unsigned Opc = getSetLocalOpcode(RC);
+
+            WebAssemblyDebugValueManager(&MI).replaceWithLocal(LocalId);
+
             BuildMI(MBB, InsertPt, MI.getDebugLoc(), TII->get(Opc))
                 .addImm(LocalId)
                 .addReg(NewReg);
@@ -378,6 +384,13 @@ bool WebAssemblyExplicitLocals::runOnMachineFunction(MachineFunction &MF) {
     MFI.setLocal(RL->second - MFI.getParams().size(),
                  typeForRegClass(MRI.getRegClass(Reg)));
     Changed = true;
+  }
+
+  {
+    auto RL = Reg2Local.find(MFI.SPVReg);
+    if (RL != Reg2Local.end()) {
+      MFI.SPLocal = RL->second;
+    }
   }
 
 #ifndef NDEBUG
