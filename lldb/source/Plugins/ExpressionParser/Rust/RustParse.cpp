@@ -89,7 +89,7 @@ CreateValueInMemory(ExecutionContext &exe_ctx, CompilerType type, Status &error)
   }
 
   Process *proc = exe_ctx.GetProcessPtr();
-  uint64_t size = type.GetByteSize(proc);
+  uint64_t size = type.GetByteSize(proc).getValueOr(0);
   addr_t addr = proc->AllocateMemory(size,
                                      lldb::ePermissionsWritable | lldb::ePermissionsReadable,
                                      error);
@@ -141,10 +141,9 @@ GetTypeByName(ExecutionContext &exe_ctx, const char *name, Status &error) {
     return CompilerType();
   }
 
-  SymbolContext sc;
   TypeList type_list;
   llvm::DenseSet<SymbolFile *> searched_symbol_files;
-  uint32_t num_matches = target->GetImages().FindTypes(sc, ConstString(name), true,
+  uint32_t num_matches = target->GetImages().FindTypes(nullptr, ConstString(name), true,
                                                        2, searched_symbol_files, type_list);
   if (num_matches > 0) {
     return type_list.GetTypeAtIndex(0)->GetFullCompilerType();
@@ -518,10 +517,9 @@ RustPath::FindDecl(ExecutionContext &exe_ctx, Status &error,
         return true;
       }
 
-      SymbolContext null_sc;
       CompilerDeclContext found_ns;
       for (const ConstString &ns_name : fullname) {
-        found_ns = symbol_file->FindNamespace(null_sc, ns_name, &found_ns);
+        found_ns = symbol_file->FindNamespace(ns_name, &found_ns);
         if (!found_ns) {
           break;
         }
