@@ -11,7 +11,7 @@ Written by the `LLVM Team <https://llvm.org/>`_
 Introduction
 ============
 
-This document contains the release notes for the Clang C/C++/Objective-C
+This document contains the release notes for the Clang C/C++/Objective-C/OpenCL
 frontend, part of the LLVM Compiler Infrastructure, release 8.0.0. Here we
 describe the status of Clang in some detail, including major
 improvements from the previous release and new feature work. For the
@@ -41,7 +41,7 @@ Major New Features
   example, due to renaming a class or namespace).
   See the :ref:`UsersManual <profile_remapping>` for details.
 
-- Clang has new options to initialize automatic variables with either a pattern or with zeroes. The default is still that automatic variables are uninitialized. This isn't meant to change the semantics of C and C++. Rather, it's meant to be a last resort when programmers inadvertently have some undefined behavior in their code. These options aim to make undefined behavior hurt less, which security-minded people will be very happy about. Notably, this means that there's no inadvertent information leak when:
+- Clang has new options to initialize automatic variables with a pattern. The default is still that automatic variables are uninitialized. This isn't meant to change the semantics of C and C++. Rather, it's meant to be a last resort when programmers inadvertently have some undefined behavior in their code. These options aim to make undefined behavior hurt less, which security-minded people will be very happy about. Notably, this means that there's no inadvertent information leak when:
 
     * The compiler re-uses stack slots, and a value is used uninitialized.
 
@@ -64,8 +64,6 @@ Major New Features
     * ``-ftrivial-auto-var-init=uninitialized`` (the default)
 
     * ``-ftrivial-auto-var-init=pattern``
-
-    * ``-ftrivial-auto-var-init=zero`` ``-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang``
 
   There is also a new attribute to request a variable to not be initialized, mainly to disable initialization of large stack arrays when deemed too expensive:
 
@@ -212,7 +210,7 @@ Attribute Changes in Clang
 Windows Support
 ---------------
 
-- clang-cl now supports the use of the precompiled header options /Yc and /Yu
+- clang-cl now supports the use of the precompiled header options ``/Yc`` and ``/Yu``
   without the filename argument. When these options are used without the
   filename, a `#pragma hdrstop` inside the source marks the end of the
   precompiled code.
@@ -231,7 +229,8 @@ Windows Support
 
 - Allow using Address Sanitizer and Undefined Behaviour Sanitizer on MinGW.
 
-- ...
+- Structured Exception Handling support for ARM64 Windows. The ARM64 Windows
+  target is in pretty good shape now.
 
 
 C Language Changes in Clang
@@ -261,10 +260,60 @@ Objective-C Language Changes in Clang
 
 ...
 
-OpenCL C Language Changes in Clang
-----------------------------------
+OpenCL Kernel Language Changes in Clang
+---------------------------------------
 
-...
+Misc:
+
+- Improved address space support with Clang builtins.
+
+- Improved various diagnostics for vectors with element types from extensions;
+  values used in attributes; duplicate address spaces.
+
+- Allow blocks to capture arrays.
+
+- Allow zero assignment and comparisons between variables of ``queue_t`` type.
+
+- Improved diagnostics of formatting specifiers and argument promotions for
+  vector types in ``printf``.
+
+- Fixed return type of enqueued kernel and pipe builtins.
+
+- Fixed address space of ``clk_event_t`` generated in the IR.
+
+- Fixed address space when passing/returning structs.
+
+Header file fixes:
+
+- Added missing extension guards around several builtin function overloads.
+
+- Fixed serialization support when registering vendor extensions using pragmas.
+
+- Fixed OpenCL version in declarations of builtin functions with sampler-less
+  image accesses.
+
+New vendor extensions added:
+
+- ``cl_intel_planar_yuv``
+
+- ``cl_intel_device_side_avc_motion_estimation``
+
+
+C++ for OpenCL:
+
+- Added support of address space conversions in C style casts.
+
+- Enabled address spaces for references.
+
+- Fixed use of address spaces in templates: address space deduction and diagnostics.
+
+- Changed default address space to work with C++ specific concepts: class members,
+  template parameters, etc.
+
+- Added generic address space by default to the generated hidden 'this' parameter.
+
+- Extend overload ranking rules for address spaces.
+
 
 ABI Changes in Clang
 --------------------
