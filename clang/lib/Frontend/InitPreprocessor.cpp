@@ -411,7 +411,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       if (LangOpts.OpenCLCPlusPlusVersion == 100)
         Builder.defineMacro("__OPENCL_CPP_VERSION__", "100");
       else
-        llvm_unreachable("Unsupported OpenCL C++ version");
+        llvm_unreachable("Unsupported C++ version for OpenCL");
       Builder.defineMacro("__CL_CPP_VERSION_1_0__", "100");
     } else {
       // OpenCL v1.0 and v1.1 do not have a predefined macro to indicate the
@@ -603,6 +603,11 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
   // Support for #pragma redefine_extname (Sun compatibility)
   Builder.defineMacro("__PRAGMA_REDEFINE_EXTNAME", "1");
+
+  // Previously this macro was set to a string aiming to achieve compatibility
+  // with GCC 4.2.1. Now, just return the full Clang version
+  Builder.defineMacro("__VERSION__", "\"" +
+                      Twine(getClangFullCPPVersion()) + "\"");
 
   // Initialize language-specific preprocessor defines.
 

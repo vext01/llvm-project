@@ -32,18 +32,26 @@ static bool operator==(const DirectoryWatcher::Event &lhs,
 
 namespace {
 
+typedef DirectoryWatcher::Event::EventKind EventKind;
+
 struct DirectoryWatcherTestFixture {
   std::string TestRootDir;
   std::string TestWatchedDir;
 
   DirectoryWatcherTestFixture() {
     SmallString<128> pathBuf;
-    std::error_code UniqDirRes = createUniqueDirectory("dirwatcher", pathBuf);
+#ifndef NDEBUG
+    std::error_code UniqDirRes =
+#endif
+    createUniqueDirectory("dirwatcher", pathBuf);
     assert(!UniqDirRes);
     TestRootDir = pathBuf.str();
     path::append(pathBuf, "watch");
     TestWatchedDir = pathBuf.str();
-    std::error_code CreateDirRes = create_directory(TestWatchedDir, false);
+#ifndef NDEBUG
+    std::error_code CreateDirRes =
+#endif
+    create_directory(TestWatchedDir, false);
     assert(!CreateDirRes);
   }
 
@@ -75,15 +83,15 @@ struct DirectoryWatcherTestFixture {
   }
 };
 
-std::string eventKindToString(const DirectoryWatcher::Event::EventKind K) {
+std::string eventKindToString(const EventKind K) {
   switch (K) {
-  case DirectoryWatcher::Event::EventKind::Removed:
+  case EventKind::Removed:
     return "Removed";
-  case DirectoryWatcher::Event::EventKind::Modified:
+  case EventKind::Modified:
     return "Modified";
-  case DirectoryWatcher::Event::EventKind::WatchedDirRemoved:
+  case EventKind::WatchedDirRemoved:
     return "WatchedDirRemoved";
-  case DirectoryWatcher::Event::EventKind::WatcherGotInvalidated:
+  case EventKind::WatcherGotInvalidated:
     return "WatcherGotInvalidated";
   }
   llvm_unreachable("unknown event kind");
@@ -91,7 +99,9 @@ std::string eventKindToString(const DirectoryWatcher::Event::EventKind K) {
 
 struct VerifyingConsumer {
   std::vector<DirectoryWatcher::Event> ExpectedInitial;
+  const std::vector<DirectoryWatcher::Event> ExpectedInitialCopy;
   std::vector<DirectoryWatcher::Event> ExpectedNonInitial;
+  const std::vector<DirectoryWatcher::Event> ExpectedNonInitialCopy;
   std::vector<DirectoryWatcher::Event> OptionalNonInitial;
   std::vector<DirectoryWatcher::Event> UnexpectedInitial;
   std::vector<DirectoryWatcher::Event> UnexpectedNonInitial;
@@ -102,8 +112,8 @@ struct VerifyingConsumer {
       const std::vector<DirectoryWatcher::Event> &ExpectedInitial,
       const std::vector<DirectoryWatcher::Event> &ExpectedNonInitial,
       const std::vector<DirectoryWatcher::Event> &OptionalNonInitial = {})
-      : ExpectedInitial(ExpectedInitial),
-        ExpectedNonInitial(ExpectedNonInitial),
+      : ExpectedInitial(ExpectedInitial), ExpectedInitialCopy(ExpectedInitial),
+        ExpectedNonInitial(ExpectedNonInitial), ExpectedNonInitialCopy(ExpectedNonInitial),
         OptionalNonInitial(OptionalNonInitial) {}
 
   // This method is used by DirectoryWatcher.
@@ -175,6 +185,26 @@ struct VerifyingConsumer {
   }
 
   void printUnmetExpectations(llvm::raw_ostream &OS) {
+    // If there was any issue, print the expected state
+    if (
+      !ExpectedInitial.empty()
+      ||
+      !ExpectedNonInitial.empty()
+      ||
+      !UnexpectedInitial.empty()
+      ||
+      !UnexpectedNonInitial.empty()
+    ) {
+      OS << "Expected initial events: \n";
+      for (const auto &E : ExpectedInitialCopy) {
+        OS << eventKindToString(E.Kind) << " " << E.Filename << "\n";
+      }
+      OS << "Expected non-initial events: \n";
+      for (const auto &E : ExpectedNonInitialCopy) {
+        OS << eventKindToString(E.Kind) << " " << E.Filename << "\n";
+      }
+    }
+
     if (!ExpectedInitial.empty()) {
       OS << "Expected but not seen initial events: \n";
       for (const auto &E : ExpectedInitial) {
@@ -212,6 +242,7 @@ void checkEventualResultWithTimeout(VerifyingConsumer &TestConsumer) {
   EXPECT_TRUE(WaitForExpectedStateResult.wait_for(std::chrono::seconds(3)) ==
               std::future_status::ready)
       << "The expected result state wasn't reached before the time-out.";
+  std::unique_lock<std::mutex> L(TestConsumer.Mtx);
   EXPECT_TRUE(TestConsumer.result().hasValue());
   if (TestConsumer.result().hasValue()) {
     EXPECT_TRUE(*TestConsumer.result());
@@ -220,7 +251,6 @@ void checkEventualResultWithTimeout(VerifyingConsumer &TestConsumer) {
       !TestConsumer.result().hasValue())
     TestConsumer.printUnmetExpectations(llvm::outs());
 }
-
 } // namespace
 
 TEST(DirectoryWatcherTest, InitialScanSync) {
@@ -231,10 +261,17 @@ TEST(DirectoryWatcherTest, InitialScanSync) {
   fixture.addFile("c");
 
   VerifyingConsumer TestConsumer{
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"},
-       {DirectoryWatcher::Event::EventKind::Modified, "b"},
-       {DirectoryWatcher::Event::EventKind::Modified, "c"}},
-      {}};
+      {{EventKind::Modified, "a"},
+       {EventKind::Modified, "b"},
+       {EventKind::Modified, "c"}},
+      {},
+      // We have to ignore these as it's a race between the test process
+      // which is scanning the directory and kernel which is sending
+      // notification.
+      {{EventKind::Modified, "a"},
+       {EventKind::Modified, "b"},
+       {EventKind::Modified, "c"}}
+      };
 
   auto DW = DirectoryWatcher::create(
       fixture.TestWatchedDir,
@@ -255,10 +292,17 @@ TEST(DirectoryWatcherTest, InitialScanAsync) {
   fixture.addFile("c");
 
   VerifyingConsumer TestConsumer{
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"},
-       {DirectoryWatcher::Event::EventKind::Modified, "b"},
-       {DirectoryWatcher::Event::EventKind::Modified, "c"}},
-      {}};
+      {{EventKind::Modified, "a"},
+       {EventKind::Modified, "b"},
+       {EventKind::Modified, "c"}},
+      {},
+      // We have to ignore these as it's a race between the test process
+      // which is scanning the directory and kernel which is sending
+      // notification.
+      {{EventKind::Modified, "a"},
+       {EventKind::Modified, "b"},
+       {EventKind::Modified, "c"}}
+       };
 
   auto DW = DirectoryWatcher::create(
       fixture.TestWatchedDir,
@@ -276,9 +320,9 @@ TEST(DirectoryWatcherTest, AddFiles) {
 
   VerifyingConsumer TestConsumer{
       {},
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"},
-       {DirectoryWatcher::Event::EventKind::Modified, "b"},
-       {DirectoryWatcher::Event::EventKind::Modified, "c"}}};
+      {{EventKind::Modified, "a"},
+       {EventKind::Modified, "b"},
+       {EventKind::Modified, "c"}}};
 
   auto DW = DirectoryWatcher::create(
       fixture.TestWatchedDir,
@@ -301,8 +345,9 @@ TEST(DirectoryWatcherTest, ModifyFile) {
   fixture.addFile("a");
 
   VerifyingConsumer TestConsumer{
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"}},
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"}}};
+      {{EventKind::Modified, "a"}},
+      {{EventKind::Modified, "a"}},
+      {{EventKind::Modified, "a"}}};
 
   auto DW = DirectoryWatcher::create(
       fixture.TestWatchedDir,
@@ -330,8 +375,9 @@ TEST(DirectoryWatcherTest, DeleteFile) {
   fixture.addFile("a");
 
   VerifyingConsumer TestConsumer{
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"}},
-      {{DirectoryWatcher::Event::EventKind::Removed, "a"}}};
+      {{EventKind::Modified, "a"}},
+      {{EventKind::Removed, "a"}},
+      {{EventKind::Modified, "a"}}};
 
   auto DW = DirectoryWatcher::create(
       fixture.TestWatchedDir,
@@ -351,8 +397,8 @@ TEST(DirectoryWatcherTest, DeleteWatchedDir) {
 
   VerifyingConsumer TestConsumer{
       {},
-      {{DirectoryWatcher::Event::EventKind::WatchedDirRemoved, ""},
-       {DirectoryWatcher::Event::EventKind::WatcherGotInvalidated, ""}}};
+      {{EventKind::WatchedDirRemoved, ""},
+       {EventKind::WatcherGotInvalidated, ""}}};
 
   auto DW = DirectoryWatcher::create(
       fixture.TestWatchedDir,
@@ -371,7 +417,7 @@ TEST(DirectoryWatcherTest, InvalidatedWatcher) {
   DirectoryWatcherTestFixture fixture;
 
   VerifyingConsumer TestConsumer{
-      {}, {{DirectoryWatcher::Event::EventKind::WatcherGotInvalidated, ""}}};
+      {}, {{EventKind::WatcherGotInvalidated, ""}}};
 
   {
     auto DW = DirectoryWatcher::create(
@@ -382,45 +428,6 @@ TEST(DirectoryWatcherTest, InvalidatedWatcher) {
         },
         /*waitForInitialSync=*/true);
   } // DW is destructed here.
-
-  checkEventualResultWithTimeout(TestConsumer);
-}
-
-TEST(DirectoryWatcherTest, ChangeMetadata) {
-  DirectoryWatcherTestFixture fixture;
-  fixture.addFile("a");
-
-  VerifyingConsumer TestConsumer{
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"}},
-      // We don't expect any notification for file having access file changed.
-      {},
-      // Given the timing we are ok with receiving the duplicate event.
-      {{DirectoryWatcher::Event::EventKind::Modified, "a"}}};
-
-  auto DW = DirectoryWatcher::create(
-      fixture.TestWatchedDir,
-      [&TestConsumer](llvm::ArrayRef<DirectoryWatcher::Event> Events,
-                      bool IsInitial) {
-        TestConsumer.consume(Events, IsInitial);
-      },
-      /*waitForInitialSync=*/true);
-
-  { // Change access and modification time of file a.
-    Expected<file_t> HopefullyTheFD = llvm::sys::fs::openNativeFileForWrite(
-        fixture.getPathInWatched("a"), CD_OpenExisting, OF_None);
-    if (!HopefullyTheFD) {
-      llvm::outs() << HopefullyTheFD.takeError();
-    }
-
-    const int FD = HopefullyTheFD.get();
-    const TimePoint<> NewTimePt =
-        std::chrono::system_clock::now() - std::chrono::minutes(1);
-
-    std::error_code setTimeRes =
-        llvm::sys::fs::setLastAccessAndModificationTime(FD, NewTimePt,
-                                                        NewTimePt);
-    assert(!setTimeRes);
-  }
 
   checkEventualResultWithTimeout(TestConsumer);
 }

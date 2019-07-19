@@ -26,9 +26,13 @@ namespace clangd {
 enum class HighlightingKind {
   Variable = 0,
   Function,
+  Method,
+  Field,
   Class,
   Enum,
+  EnumConstant,
   Namespace,
+  TemplateParameter,
 
   NumKinds,
 };

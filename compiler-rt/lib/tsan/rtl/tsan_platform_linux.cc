@@ -67,11 +67,6 @@ extern "C" void *__libc_stack_end;
 void *__libc_stack_end = 0;
 #endif
 
-#if SANITIZER_LINUX && defined(__aarch64__)
-__tsan::uptr InitializeGuardPtr() __attribute__((visibility("hidden")));
-extern "C" __tsan::uptr _tsan_pointer_chk_guard;
-#endif
-
 #if SANITIZER_LINUX && defined(__aarch64__) && !SANITIZER_GO
 # define INIT_LONGJMP_XOR_KEY 1
 #else
@@ -302,26 +297,8 @@ void InitializePlatform() {
       CHECK_NE(personality(old_personality | ADDR_NO_RANDOMIZE), -1);
       reexec = true;
     }
-    // Initialize the guard pointer used in {sig}{set,long}jump.
-    longjmp_xor_key = InitializeGuardPtr();
-    // uptr old_value = longjmp_xor_key;
-    // InitializeLongjmpXorKey();
-    // CHECK_EQ(longjmp_xor_key, old_value);
-    // If the above check fails for you, please contact me (jlettner@apple.com)
-    // and let me know the values of the two differing keys.  Please also set a
-    // breakpoint on `InitializeGuardPtr` and `InitializeLongjmpXorKey` and tell
-    // me the stack pointer (SP) values that go into the XOR operation (where we
-    // derive the key):
-    //
-    //   InitializeLongjmpXorKey:
-    //     uptr sp = (uptr)__builtin_frame_address(0);
-    //
-    //   InitializeGuardPtr (in tsan_rtl_aarch64.S):
-    //       mov  x0, sp
-    //       ...
-    //       eor  x0, x0, x1
-    //
-    // Then feel free to comment out the call to `InitializeLongjmpXorKey`.
+    // Initialize the xor key used in {sig}{set,long}jump.
+    InitializeLongjmpXorKey();
 #endif
     if (reexec)
       ReExec();
@@ -373,9 +350,7 @@ int ExtractRecvmsgFDs(void *msgp, int *fds, int nfd) {
 // Reverse operation of libc stack pointer mangling
 static uptr UnmangleLongJmpSp(uptr mangled_sp) {
 #if defined(__x86_64__)
-# if SANITIZER_FREEBSD || SANITIZER_NETBSD
-  return mangled_sp;
-# else  // Linux
+# if SANITIZER_LINUX
   // Reverse of:
   //   xor  %fs:0x30, %rsi
   //   rol  $0x11, %rsi
@@ -385,6 +360,8 @@ static uptr UnmangleLongJmpSp(uptr mangled_sp) {
       : "=r" (sp)
       : "0" (mangled_sp));
   return sp;
+# else
+  return mangled_sp;
 # endif
 #elif defined(__aarch64__)
 # if SANITIZER_LINUX
@@ -394,11 +371,11 @@ static uptr UnmangleLongJmpSp(uptr mangled_sp) {
 # endif
 #elif defined(__powerpc64__)
   // Reverse of:
-  //  ld   r4, -28696(r13)
-  //  xor  r4, r3, r4
-  uptr xor_guard;
-  asm("ld  %0, -28696(%%r13) \n" : "=r" (xor_guard));
-  return mangled_sp ^ xor_guard;
+  //   ld   r4, -28696(r13)
+  //   xor  r4, r3, r4
+  uptr xor_key;
+  asm("ld  %0, -28696(%%r13)" : "=r" (xor_key));
+  return mangled_sp ^ xor_key;
 #elif defined(__mips__)
   return mangled_sp;
 #else
@@ -437,9 +414,10 @@ static void InitializeLongjmpXorKey() {
   jmp_buf env;
   REAL(_setjmp)(env);
 
-  // 2. Retrieve mangled/vanilla SP.
+  // 2. Retrieve vanilla/mangled SP.
+  uptr sp;
+  asm("mov  %0, sp" : "=r" (sp));
   uptr mangled_sp = ((uptr *)&env)[LONG_JMP_SP_ENV_SLOT];
-  uptr sp = (uptr)__builtin_frame_address(0);
 
   // 3. xor SPs to obtain key.
   longjmp_xor_key = mangled_sp ^ sp;

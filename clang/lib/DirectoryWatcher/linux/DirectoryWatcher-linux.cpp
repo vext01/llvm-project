@@ -24,6 +24,7 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <linux/version.h>
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <unistd.h>
@@ -55,7 +56,10 @@ struct SemaphorePipe {
   };
 
   void signal() {
-    ssize_t Result = llvm::sys::RetryAfterSignal(-1, write, FDWrite, "A", 1);
+#ifndef NDEBUG
+    ssize_t Result =
+#endif
+    llvm::sys::RetryAfterSignal(-1, write, FDWrite, "A", 1);
     assert(Result != -1);
   }
   ~SemaphorePipe() {
@@ -220,8 +224,8 @@ void DirectoryWatcherLinux::InotifyPollingLoop() {
 
     // Multiple epoll_events can be received for a single file descriptor per
     // epoll_wait call.
-    for (const auto &EpollEvent : EpollEventBuffer) {
-      if (EpollEvent.data.fd == InotifyPollingStopSignal.FDRead) {
+    for (int i = 0; i < EpollWaitResult; ++i) {
+      if (EpollEventBuffer[i].data.fd == InotifyPollingStopSignal.FDRead) {
         StopWork();
         return;
       }
@@ -329,8 +333,12 @@ std::unique_ptr<DirectoryWatcher> clang::DirectoryWatcher::create(
 
   const int InotifyWD = inotify_add_watch(
       InotifyFD, Path.str().c_str(),
-      IN_CREATE | IN_DELETE | IN_DELETE_SELF | IN_EXCL_UNLINK | IN_MODIFY |
-          IN_MOVED_FROM | IN_MOVE_SELF | IN_MOVED_TO | IN_ONLYDIR | IN_IGNORED);
+      IN_CREATE | IN_DELETE | IN_DELETE_SELF | IN_MODIFY |
+      IN_MOVED_FROM | IN_MOVE_SELF | IN_MOVED_TO | IN_ONLYDIR | IN_IGNORED
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36)
+      | IN_EXCL_UNLINK
+#endif
+      );
   if (InotifyWD == -1)
     return nullptr;
 
