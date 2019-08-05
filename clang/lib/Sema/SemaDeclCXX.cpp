@@ -6165,8 +6165,8 @@ void Sema::CheckCompletedCXXClass(CXXRecordDecl *Record) {
         M->dropAttr<DLLExportAttr>();
 
       if (M->hasAttr<DLLExportAttr>()) {
-        DefineImplicitSpecialMember(*this, M, M->getLocation());
-        ActOnFinishInlineFunctionDef(M);
+        // Define after any fields with in-class initializers have been parsed.
+        DelayedDllExportMemberFunctions.push_back(M);
       }
     }
   };
@@ -8190,6 +8190,27 @@ void Sema::ActOnFinishDelayedCXXMethodDeclaration(Scope *S, Decl *MethodD) {
     CheckCXXDefaultArguments(Method);
 }
 
+// Emit the given diagnostic for each non-address-space qualifier.
+// Common part of CheckConstructorDeclarator and CheckDestructorDeclarator.
+static void checkMethodTypeQualifiers(Sema &S, Declarator &D, unsigned DiagID) {
+  const DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
+  if (FTI.hasMethodTypeQualifiers() && !D.isInvalidType()) {
+    bool DiagOccured = false;
+    FTI.MethodQualifiers->forEachQualifier(
+        [DiagID, &S, &DiagOccured](DeclSpec::TQ, StringRef QualName,
+                                   SourceLocation SL) {
+          // This diagnostic should be emitted on any qualifier except an addr
+          // space qualifier. However, forEachQualifier currently doesn't visit
+          // addr space qualifiers, so there's no way to write this condition
+          // right now; we just diagnose on everything.
+          S.Diag(SL, DiagID) << QualName << SourceRange(SL);
+          DiagOccured = true;
+        });
+    if (DiagOccured)
+      D.setInvalidType();
+  }
+}
+
 /// CheckConstructorDeclarator - Called by ActOnDeclarator to check
 /// the well-formedness of the constructor declarator @p D with type @p
 /// R. If there are any errors in the declarator, this routine will
@@ -8230,25 +8251,11 @@ QualType Sema::CheckConstructorDeclarator(Declarator &D, QualType R,
     D.setInvalidType();
   }
 
-  DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-  if (FTI.hasMethodTypeQualifiers()) {
-    bool DiagOccured = false;
-    FTI.MethodQualifiers->forEachQualifier(
-        [&](DeclSpec::TQ TypeQual, StringRef QualName, SourceLocation SL) {
-          // This diagnostic should be emitted on any qualifier except an addr
-          // space qualifier. However, forEachQualifier currently doesn't visit
-          // addr space qualifiers, so there's no way to write this condition
-          // right now; we just diagnose on everything.
-          Diag(SL, diag::err_invalid_qualified_constructor)
-              << QualName << SourceRange(SL);
-          DiagOccured = true;
-        });
-    if (DiagOccured)
-      D.setInvalidType();
-  }
+  checkMethodTypeQualifiers(*this, D, diag::err_invalid_qualified_constructor);
 
   // C++0x [class.ctor]p4:
   //   A constructor shall not be declared with a ref-qualifier.
+  DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
   if (FTI.hasRefQualifier()) {
     Diag(FTI.getRefQualifierLoc(), diag::err_ref_qualifier_constructor)
       << FTI.RefQualifierIsLValueRef
@@ -8423,18 +8430,11 @@ QualType Sema::CheckDestructorDeclarator(Declarator &D, QualType R,
     }
   }
 
-  DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-  if (FTI.hasMethodTypeQualifiers() && !D.isInvalidType()) {
-    FTI.MethodQualifiers->forEachQualifier(
-        [&](DeclSpec::TQ TypeQual, StringRef QualName, SourceLocation SL) {
-          Diag(SL, diag::err_invalid_qualified_destructor)
-              << QualName << SourceRange(SL);
-        });
-    D.setInvalidType();
-  }
+  checkMethodTypeQualifiers(*this, D, diag::err_invalid_qualified_destructor);
 
   // C++0x [class.dtor]p2:
   //   A destructor shall not be declared with a ref-qualifier.
+  DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
   if (FTI.hasRefQualifier()) {
     Diag(FTI.getRefQualifierLoc(), diag::err_ref_qualifier_destructor)
       << FTI.RefQualifierIsLValueRef
@@ -11419,6 +11419,21 @@ void Sema::ActOnFinishCXXMemberDecls() {
 
 void Sema::ActOnFinishCXXNonNestedClass(Decl *D) {
   referenceDLLExportedClassMethods();
+
+  if (!DelayedDllExportMemberFunctions.empty()) {
+    SmallVector<CXXMethodDecl*, 4> WorkList;
+    std::swap(DelayedDllExportMemberFunctions, WorkList);
+    for (CXXMethodDecl *M : WorkList) {
+      DefineImplicitSpecialMember(*this, M, M->getLocation());
+
+      // Pass the method to the consumer to get emitted. This is not necessary
+      // for explicit instantiation definitions, as they will get emitted
+      // anyway.
+      if (M->getParent()->getTemplateSpecializationKind() !=
+          TSK_ExplicitInstantiationDefinition)
+        ActOnFinishInlineFunctionDef(M);
+    }
+  }
 }
 
 void Sema::referenceDLLExportedClassMethods() {
