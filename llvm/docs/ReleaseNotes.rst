@@ -52,6 +52,10 @@ Non-comprehensive list of changes in this release
 * **llvm-objcopy/llvm-strip** got support for COFF object files/executables,
   supporting the most common copying/stripping options.
 
+* The CMake parameter ``CLANG_ANALYZER_ENABLE_Z3_SOLVER`` has been replaced by
+  ``LLVM_ENABLE_Z3_SOLVER``.
+
+
 .. NOTE
    If you would like to document a larger change, then you can add a
    subsection about it right here. You can copy the following boilerplate
@@ -61,6 +65,19 @@ Non-comprehensive list of changes in this release
    -------------------
 
    Makes programs 10x faster by doing Special New Thing.
+
+Noteworthy optimizations
+------------------------
+
+* LLVM will now remove stores to constant memory (since this is a
+  contradiction) under the assumption the code in question must be dead.  This
+  has proven to be problematic for some C/C++ code bases which expect to be
+  able to cast away 'const'.  This is (and has always been) undefined
+  behavior, but up until now had not been actively utilized for optimization
+  purposes in this exact way.  For more information, please see:
+  `bug 42763 <https://bugs.llvm.org/show_bug.cgi?id=42763>_` and
+  `post commit discussion <http://lists.llvm.org/pipermail/llvm-commits/Week-of-Mon-20190422/646945.html>_`.  
+
 
 Changes to the LLVM IR
 ----------------------
@@ -98,7 +115,19 @@ Changes to the ARM Backend
 Changes to the MIPS Target
 --------------------------
 
- During this release ...
+* Support for ``.cplocal`` assembler directive.
+
+* Support for ``sge``, ``sgeu``, ``sgt``, ``sgtu`` pseudo instructions.
+
+* Support for ``o`` inline asm constraint.
+
+* Improved support of GlobalISel instruction selection framework.
+  This feature is still in experimental state for MIPS targets though.
+
+* Various code-gen improvements, related to improved and fixed instruction
+  selection and encoding and floating-point registers allocation.
+
+* Complete P5600 scheduling model.
 
 
 Changes to the PowerPC Target
