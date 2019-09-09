@@ -122,8 +122,7 @@ opt<bool> ShowOrigins{
 opt<bool> EnableBackgroundIndex{
     "background-index",
     cat(Features),
-    desc("Index project code in the background and persist index on disk. "
-         "Experimental"),
+    desc("Index project code in the background and persist index on disk."),
     init(true),
 };
 
@@ -267,7 +266,8 @@ list<std::string> TweakList{
 opt<unsigned> WorkerThreadsCount{
     "j",
     cat(Misc),
-    desc("Number of async workers used by clangd"),
+    desc("Number of async workers used by clangd. Background index also "
+         "uses this many workers."),
     init(getDefaultAsyncThreadsCount()),
 };
 
@@ -308,7 +308,8 @@ opt<PCHStorageFlag> PCHStorage{
 opt<bool> Sync{
     "sync",
     cat(Misc),
-    desc("Parse on main thread. If set, -j is ignored"),
+    desc("Handle client requests on main thread. Background index still uses "
+         "its own thread."),
     init(false),
     Hidden,
 };
