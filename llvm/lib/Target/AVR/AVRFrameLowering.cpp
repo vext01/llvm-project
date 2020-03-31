@@ -57,10 +57,11 @@ void AVRFrameLowering::emitPrologue(MachineFunction &MF,
   DebugLoc DL = (MBBI != MBB.end()) ? MBBI->getDebugLoc() : DebugLoc();
   const AVRSubtarget &STI = MF.getSubtarget<AVRSubtarget>();
   const AVRInstrInfo &TII = *STI.getInstrInfo();
+  const AVRMachineFunctionInfo *AFI = MF.getInfo<AVRMachineFunctionInfo>();
   bool HasFP = hasFP(MF);
 
   // Interrupt handlers re-enable interrupts in function entry.
-  if (CallConv == CallingConv::AVR_INTR) {
+  if (AFI->isInterruptHandler() && CallConv != CallingConv::AVR_SIGNAL) {
     BuildMI(MBB, MBBI, DL, TII.get(AVR::BSETs))
         .addImm(0x07)
         .setMIFlag(MachineInstr::FrameSetup);
@@ -75,8 +76,7 @@ void AVRFrameLowering::emitPrologue(MachineFunction &MF,
 
   // Emit special prologue code to save R1, R0 and SREG in interrupt/signal
   // handlers before saving any other registers.
-  if (CallConv == CallingConv::AVR_INTR ||
-      CallConv == CallingConv::AVR_SIGNAL) {
+  if (AFI->isInterruptHandler()) {
     BuildMI(MBB, MBBI, DL, TII.get(AVR::PUSHWRr))
         .addReg(AVR::R1R0, RegState::Kill)
         .setMIFlag(MachineInstr::FrameSetup);
@@ -100,7 +100,6 @@ void AVRFrameLowering::emitPrologue(MachineFunction &MF,
   }
 
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const AVRMachineFunctionInfo *AFI = MF.getInfo<AVRMachineFunctionInfo>();
   unsigned FrameSize = MFI.getStackSize() - AFI->getCalleeSavedFrameSize();
 
   // Skip the callee-saved push instructions.
@@ -143,13 +142,11 @@ void AVRFrameLowering::emitPrologue(MachineFunction &MF,
 
 void AVRFrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
-  CallingConv::ID CallConv = MF.getFunction().getCallingConv();
-  bool isHandler = (CallConv == CallingConv::AVR_INTR ||
-                    CallConv == CallingConv::AVR_SIGNAL);
+  const AVRMachineFunctionInfo *AFI = MF.getInfo<AVRMachineFunctionInfo>();
 
   // Early exit if the frame pointer is not needed in this function except for
   // signal/interrupt handlers where special code generation is required.
-  if (!hasFP(MF) && !isHandler) {
+  if (!hasFP(MF) && !AFI->isInterruptHandler()) {
     return;
   }
 
@@ -159,14 +156,13 @@ void AVRFrameLowering::emitEpilogue(MachineFunction &MF,
 
   DebugLoc DL = MBBI->getDebugLoc();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const AVRMachineFunctionInfo *AFI = MF.getInfo<AVRMachineFunctionInfo>();
   unsigned FrameSize = MFI.getStackSize() - AFI->getCalleeSavedFrameSize();
   const AVRSubtarget &STI = MF.getSubtarget<AVRSubtarget>();
   const AVRInstrInfo &TII = *STI.getInstrInfo();
 
   // Emit special epilogue code to restore R1, R0 and SREG in interrupt/signal
   // handlers at the very end of the function, just before reti.
-  if (isHandler) {
+  if (AFI->isInterruptHandler()) {
     BuildMI(MBB, MBBI, DL, TII.get(AVR::POPRd), AVR::R0);
     BuildMI(MBB, MBBI, DL, TII.get(AVR::OUTARr))
         .addImm(0x3f)
