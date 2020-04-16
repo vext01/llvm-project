@@ -434,10 +434,6 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
   uint64_t FixupOffset = Layout.getFragmentOffset(Fragment) + Fixup.getOffset();
   MCContext &Ctx = Asm.getContext();
 
-  // The .init_array isn't translated as data, so don't do relocations in it.
-  if (FixupSection.getSectionName().startswith(".init_array"))
-    return;
-
   if (const MCSymbolRefExpr *RefB = Target.getSymB()) {
     assert(RefB->getKind() == MCSymbolRefExpr::VK_None &&
            "Should not have constructed this");
@@ -482,6 +478,12 @@ void WasmObjectWriter::recordRelocation(MCAssembler &Asm,
   // We either rejected the fixup or folded B into C at this point.
   const MCSymbolRefExpr *RefA = Target.getSymA();
   const auto *SymA = RefA ? cast<MCSymbolWasm>(&RefA->getSymbol()) : nullptr;
+
+  // The .init_array isn't translated as data, so don't do relocations in it.
+  if (FixupSection.getSectionName().startswith(".init_array")) {
+    SymA->setUsedInInitArray();
+    return;
+  }
 
   if (SymA && SymA->isVariable()) {
     const MCExpr *Expr = SymA->getVariableValue();
@@ -1113,16 +1115,13 @@ void WasmObjectWriter::registerEventType(const MCSymbolWasm &Symbol) {
 }
 
 static bool isInSymtab(const MCSymbolWasm &Sym) {
-  if (Sym.isUsedInReloc())
+  if (Sym.isUsedInReloc() || Sym.isUsedInInitArray())
     return true;
 
   if (Sym.isComdat() && !Sym.isDefined())
     return false;
 
-  if (Sym.isTemporary() && Sym.getName().empty())
-    return false;
-
-  if (Sym.isTemporary() && Sym.isData() && !Sym.getSize())
+  if (Sym.isTemporary())
     return false;
 
   if (Sym.isSection())
@@ -1578,7 +1577,7 @@ uint64_t WasmObjectWriter::writeObject(MCAssembler &Asm,
         report_fatal_error("fixups in .init_array should be symbol references");
       const auto &TargetSym = cast<const MCSymbolWasm>(SymRef->getSymbol());
       if (TargetSym.getIndex() == InvalidIndex)
-        report_fatal_error("symbols in .init_array should exist in symbtab");
+        report_fatal_error("symbols in .init_array should exist in symtab");
       if (!TargetSym.isFunction())
         report_fatal_error("symbols in .init_array should be for functions");
       InitFuncs.push_back(
