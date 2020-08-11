@@ -1,3 +1,10 @@
+set(LLD_SYSTEM_LIBS ${LLVM_PTHREAD_LIB})
+
+# See also: https://bugs.llvm.org/show_bug.cgi?id=47123
+if(NOT HAVE_CXX_ATOMICS64_WITHOUT_LIB)
+  list(APPEND LLD_SYSTEM_LIBS atomic)
+endif()
+
 if(NOT LLD_BUILT_STANDALONE)
   set(tablegen_deps intrinsics_gen)
 endif()
@@ -54,7 +61,7 @@ add_lld_library(lldCommon
   Target
 
   LINK_LIBS
-  ${LLVM_PTHREAD_LIB}
+  ${LLD_SYSTEM_LIBS}
 
   DEPENDS
   ${tablegen_deps}
