@@ -1592,8 +1592,9 @@ TypeIndex CodeViewDebug::lowerTypeArray(const DICompositeType *Ty) {
     assert(Element->getTag() == dwarf::DW_TAG_subrange_type);
 
     const DISubrange *Subrange = cast<DISubrange>(Element);
-    assert(!Subrange->getRawLowerBound() &&
-           "codeview doesn't support subranges with lower bounds");
+    // This ought to allow `lowerBound: 0`, https://bugs.llvm.org/show_bug.cgi?id=47287
+    // assert(!Subrange->getRawLowerBound() &&
+    //        "codeview doesn't support subranges with lower bounds");
     int64_t Count = -1;
     if (auto *CI = Subrange->getCount().dyn_cast<ConstantInt*>())
       Count = CI->getSExtValue();
