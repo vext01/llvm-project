@@ -2286,16 +2286,9 @@ collectPromotionCandidates(MemorySSA *MSSA, AliasAnalysis *AA, Loop *L,
     if (AttemptingPromotion.contains(I))
       return;
 
-    if (Optional<MemoryLocation> Loc = MemoryLocation::getOrNone(I)) {
-      llvm::erase_if(Sets, [&](const AliasSet *AS) {
-        return AS->aliasesPointer(Loc->Ptr, Loc->Size, Loc->AATags, *AA)
-               != NoAlias;
-      });
-    } else {
-      llvm::erase_if(Sets, [&](const AliasSet *AS) {
-        return AS->aliasesUnknownInst(I, *AA);
-      });
-    }
+    llvm::erase_if(Sets, [&](const AliasSet *AS) {
+      return AS->aliasesUnknownInst(I, *AA);
+    });
   });
 
   SmallVector<SmallSetVector<Value *, 8>, 0> Result;
