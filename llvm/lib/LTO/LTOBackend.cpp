@@ -431,6 +431,12 @@ static void codegen(const Config &Conf, TargetMachine *TM,
   } else
     TM->Options.MCOptions.SplitDwarfFile = Conf.SplitDwarfFile;
 
+  // Turn on the .llvm_bb_addr_map section for Yorick to use for mapping.
+  //
+  // FIXME: At some point if we still use this, expose the option to do this as
+  // a plugin option and upstream the change.
+  TM->Options.BBSections = BasicBlockSection::Labels;
+
   if (!DwoFile.empty()) {
     std::error_code EC;
     DwoOut = std::make_unique<ToolOutputFile>(DwoFile, EC, sys::fs::OF_None);
