@@ -25,4 +25,7 @@ add_llvm_component_library(LLVMPasses
   TransformUtils
   Vectorize
   Instrumentation
+
+  # FIXME: might not be needed once in a default pipeline?
+  YkTraceInputs
   )
