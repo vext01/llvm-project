@@ -6,7 +6,7 @@
 namespace llvm {
   class YkTraceInputsPass : public PassInfoMixin<YkTraceInputsPass> {
     public:
-      PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+      PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
   };
 }
 
