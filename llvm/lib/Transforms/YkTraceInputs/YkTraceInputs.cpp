@@ -74,7 +74,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     bool FirstBlock = true;
     std::vector<BasicBlock *> Work;
     std::set<Value *> DefinedInTrace;
-    unsigned NextPatchedArgIdx = StartInst->arg_size();
+    std::set<Value *> NewOperands;
     Work.push_back(StartInst->getParent());
     while (!Work.empty()) {
       BasicBlock *BB = Work.back();
@@ -120,6 +120,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
             //StartInst->setArgOperand(NextPatchedArgIdx++, O);
             //StartInst->getOperandList()[NextPatchedArgIdx++] = O;
             //StartInst->getOperandList()->insert(O, StartInst->operands_end());
+            NewOperands.insert(O);
           }
         }
       }
@@ -132,6 +133,22 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
       }
     }
+
+    // Now we know all of the trace inputs, we construct a new call to and
+    // replace the old one.
+    errs() << "XXX: " << StartTracingFunc->getFunctionType()->getNumParams() << "\n";
+    errs() << "YYY: " << NewOperands.size() << "\n";
+    std::vector<Value *> NewOperandsVec;
+    NewOperandsVec.push_back(StartInst->getArgOperand(0)); // Add the TracingKind arg.
+    for (Value *V: NewOperands) {
+      NewOperandsVec.push_back(V);
+    }
+    StartTracingFunc->dump();
+    CallInst *NewCall = CallInst::Create(StartTracingFunc->getFunctionType(), StartTracingFunc, NewOperandsVec, "", StartInst);
+    NewCall->dump();
+    StartInst->replaceAllUsesWith(NewCall);
+    StartInst->eraseFromParent();
   }
+  M.dump();
   return PreservedAnalyses::all();
 }
