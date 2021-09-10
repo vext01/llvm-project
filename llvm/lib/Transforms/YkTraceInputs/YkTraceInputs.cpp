@@ -16,6 +16,7 @@ using namespace llvm;
 //}
 
 PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
+  errs() << "RUNNING YOUR PASS EDD\n";
   Function *StartTracingFunc = M.getFunction("__yktrace_start_tracing");
   if (StartTracingFunc == nullptr)
     return PreservedAnalyses::all();
@@ -43,7 +44,6 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
             // We assume that any given function only has one traced section.
             // FIXME early return if not built with assertions.
             assert(StopInst == nullptr);
-            errs() << "Num: " << CI->getNumOperands() << "\n";
             assert(CI->arg_size() == 1); // Only the tracing kind arg.
             StopInst = CI;
         }
@@ -51,15 +51,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     }
     assert(StopInst != nullptr);
 
-    errs() << "Trace between:\n";
-    StartInst->dump();
-    StopInst->dump();
-
-    errs() << "In function:\n";
-    Caller->dump();
-
-    // FIXME write tests for these assertions.
-
+    // FIXME: write tests for these assertions?
     // Check that to get to `StopInst`, you must have first executed `StartInst`.
     DominatorTree DT(*Caller);
     assert(DT.dominates(StartInst, StopInst));
@@ -70,7 +62,6 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     assert(PDT.dominates(StopInst, StartInst));
 
     // Walk the CFG looking for inputs.
-    errs() << "Running:\n";
     bool FirstBlock = true;
     std::vector<BasicBlock *> Work;
     std::set<Value *> DefinedInTrace;
@@ -79,7 +70,6 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     while (!Work.empty()) {
       BasicBlock *BB = Work.back();
       Work.pop_back();
-      errs() << "New Block\n";
       bool ProcessSuccs = true;
       for (auto I = BB->begin(); I != BB->end(); I++) {
         if (FirstBlock) {
@@ -100,9 +90,6 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
           break;
         }
 
-        errs() << "Instr:\n";
-        I->dump();
-
         // If we get here then `I` is an instruction inside the traced section.
         // We must ensure that each of its operands are either: also defined
         // within the traced section; or passed in as a trace input (as an
@@ -111,16 +98,18 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
           DefinedInTrace.insert(&*I);
         }
 
-        for (auto &O: I->operands()) {
-          if (!DefinedInTrace.count(&*O)) {
-            // This operand isn't defined in the trace and needs to be a trace input.
-            errs() << "Not defined in trace: \n";
-            O->dump();
-            // FIXME: How do I add the argument to StartInst?
-            //StartInst->setArgOperand(NextPatchedArgIdx++, O);
-            //StartInst->getOperandList()[NextPatchedArgIdx++] = O;
-            //StartInst->getOperandList()->insert(O, StartInst->operands_end());
-            NewOperands.insert(O);
+        // FIXME: can/should we omit the thread tracer from trace inputs?
+        if (isa<CallInst>(I)) {
+          // Special case for calls to prevent the callee operand being
+          // classified as a trace input.
+          for (auto &O: cast<CallInst>(I)->args()) {
+            if (!DefinedInTrace.count(&*O))
+              NewOperands.insert(O);
+          }
+        } else {
+          for (auto &O: I->operands()) {
+            if (!DefinedInTrace.count(&*O))
+              NewOperands.insert(O);
           }
         }
       }
@@ -128,7 +117,6 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
       if (ProcessSuccs) {
         Instruction *Term = BB->getTerminator();
         for (auto Succ: successors(Term)) {
-          errs() << "Add Work\n";
           Work.push_back(&*Succ);
         }
       }
@@ -136,19 +124,15 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     // Now we know all of the trace inputs, we construct a new call to and
     // replace the old one.
-    errs() << "XXX: " << StartTracingFunc->getFunctionType()->getNumParams() << "\n";
-    errs() << "YYY: " << NewOperands.size() << "\n";
     std::vector<Value *> NewOperandsVec;
     NewOperandsVec.push_back(StartInst->getArgOperand(0)); // Add the TracingKind arg.
     for (Value *V: NewOperands) {
       NewOperandsVec.push_back(V);
     }
-    StartTracingFunc->dump();
     CallInst *NewCall = CallInst::Create(StartTracingFunc->getFunctionType(), StartTracingFunc, NewOperandsVec, "", StartInst);
-    NewCall->dump();
     StartInst->replaceAllUsesWith(NewCall);
     StartInst->eraseFromParent();
   }
-  M.dump();
+
   return PreservedAnalyses::all();
 }
