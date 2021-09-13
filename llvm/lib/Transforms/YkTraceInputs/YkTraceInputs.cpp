@@ -103,12 +103,12 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
           // Special case for calls to prevent the callee operand being
           // classified as a trace input.
           for (auto &O: cast<CallInst>(I)->args()) {
-            if (!DefinedInTrace.count(&*O))
+            if ((!isa<Constant>(O)) && (!DefinedInTrace.count(&*O)))
               NewOperands.insert(O);
           }
         } else {
           for (auto &O: I->operands()) {
-            if (!DefinedInTrace.count(&*O))
+            if ((!isa<Constant>(O)) && (!DefinedInTrace.count(&*O)))
               NewOperands.insert(O);
           }
         }
