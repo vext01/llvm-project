@@ -46,6 +46,7 @@
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/FunctionImportUtils.h"
 #include "llvm/Transforms/Utils/SplitModule.h"
+#include "llvm/Transforms/YkTraceInputs/YkTraceInputs.h"
 
 using namespace llvm;
 using namespace lto;
@@ -285,6 +286,10 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   if (!Conf.DisableVerify)
     MPM.addPass(VerifierPass());
 
+  // FIXME
+  //errs() << "Run pass\n";
+  //MPM.addPass(YkTraceInputsPass());
+
   MPM.run(Mod, MAM);
 }
 
@@ -402,6 +407,17 @@ bool lto::opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
                    ImportSummary);
   else
     runOldPMPasses(Conf, Mod, TM, IsThinLTO, ExportSummary, ImportSummary);
+
+  // Patch yk trace inputs.
+  // FIXME put in a function.
+  PassBuilder PB;
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  PB.registerModuleAnalyses(MAM);
+  MPM.addPass(YkTraceInputsPass());
+  MPM.run(Mod, MAM);
+  Mod.dump();
+
   return !Conf.PostOptModuleHook || Conf.PostOptModuleHook(Task, Mod);
 }
 
@@ -440,8 +456,6 @@ static void codegen(const Config &Conf, TargetMachine *TM,
 
   auto Stream = AddStream(Task);
   legacy::PassManager CodeGenPasses;
-  CodeGenPasses.add(
-      createImmutableModuleSummaryIndexWrapperPass(&CombinedIndex));
   if (Conf.PreCodeGenPassesHook)
     Conf.PreCodeGenPassesHook(CodeGenPasses);
   if (TM->addPassesToEmitFile(CodeGenPasses, *Stream->OS,
