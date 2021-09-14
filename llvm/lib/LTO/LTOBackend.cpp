@@ -398,15 +398,6 @@ bool lto::opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
                                /*EmbedBitcode*/ true, /*EmbedCmdline*/ true,
                                /*Cmdline*/ CmdArgs);
   }
-  // FIXME: Plumb the combined index into the new pass manager.
-  if (!Conf.OptPipeline.empty())
-    runNewPMCustomPasses(Conf, Mod, TM, Conf.OptPipeline, Conf.AAPipeline,
-                         Conf.DisableVerify);
-  else if (Conf.UseNewPM)
-    runNewPMPasses(Conf, Mod, TM, Conf.OptLevel, IsThinLTO, ExportSummary,
-                   ImportSummary);
-  else
-    runOldPMPasses(Conf, Mod, TM, IsThinLTO, ExportSummary, ImportSummary);
 
   // Patch yk trace inputs.
   // FIXME put in a function.
@@ -417,6 +408,16 @@ bool lto::opt(const Config &Conf, TargetMachine *TM, unsigned Task, Module &Mod,
   MPM.addPass(YkTraceInputsPass());
   MPM.run(Mod, MAM);
   Mod.dump();
+
+  // FIXME: Plumb the combined index into the new pass manager.
+  if (!Conf.OptPipeline.empty())
+    runNewPMCustomPasses(Conf, Mod, TM, Conf.OptPipeline, Conf.AAPipeline,
+                         Conf.DisableVerify);
+  else if (Conf.UseNewPM)
+    runNewPMPasses(Conf, Mod, TM, Conf.OptLevel, IsThinLTO, ExportSummary,
+                   ImportSummary);
+  else
+    runOldPMPasses(Conf, Mod, TM, IsThinLTO, ExportSummary, ImportSummary);
 
   return !Conf.PostOptModuleHook || Conf.PostOptModuleHook(Task, Mod);
 }

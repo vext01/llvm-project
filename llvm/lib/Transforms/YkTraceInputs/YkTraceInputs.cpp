@@ -14,9 +14,15 @@ using namespace llvm;
 //void YkTraceInputsPass::injectInputs(CallInst *StartInst, CallInst *StopFunc) {
 //  //errs() << ">>> " << F->getName() << "\n";
 //}
+//
+
+bool ValidTraceInput(Value *V) {
+  if ((isa<Constant>(V)) || (isa<MetadataAsValue>(V)))
+    return false;
+  return true;
+}
 
 PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
-  errs() << "RUNNING YOUR PASS EDD\n";
   Function *StartTracingFunc = M.getFunction("__yktrace_start_tracing");
   if (StartTracingFunc == nullptr)
     return PreservedAnalyses::all();
@@ -30,6 +36,10 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
 
     // Identify the traced section of code.
     CallInst *StartInst = cast<CallInst>(U);
+
+    // FIXME proper error for this.
+    assert(StartInst->arg_size() == 1); // Only the tracing kind arg.
+
     Function *Caller = StartInst->getFunction();
     // FIXME find the StopInst as we traverse the CFG below, rather than by
     // pre-scanning like this.
@@ -44,7 +54,6 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
             // We assume that any given function only has one traced section.
             // FIXME early return if not built with assertions.
             assert(StopInst == nullptr);
-            assert(CI->arg_size() == 1); // Only the tracing kind arg.
             StopInst = CI;
         }
       }
@@ -99,16 +108,21 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
 
         // FIXME: can/should we omit the thread tracer from trace inputs?
+        //I->dump();
         if (isa<CallInst>(I)) {
           // Special case for calls to prevent the callee operand being
           // classified as a trace input.
+          //errs() << "CallInst\n";
           for (auto &O: cast<CallInst>(I)->args()) {
-            if ((!isa<Constant>(O)) && (!DefinedInTrace.count(&*O)))
+            //O->dump();
+            if ((ValidTraceInput(&*O)) && (!DefinedInTrace.count(&*O)))
               NewOperands.insert(O);
           }
         } else {
+          //errs() << "Normal\n";
           for (auto &O: I->operands()) {
-            if ((!isa<Constant>(O)) && (!DefinedInTrace.count(&*O)))
+            //O->dump();
+            if ((ValidTraceInput(O)) && (!DefinedInTrace.count(&*O)))
               NewOperands.insert(O);
           }
         }
