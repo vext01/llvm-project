@@ -38,7 +38,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     CallInst *StartInst = cast<CallInst>(U);
 
     // FIXME proper error for this.
-    assert(StartInst->arg_size() == 1); // Only the tracing kind arg.
+    assert(StartInst->arg_size() == 2); // tracing kind, num_inputs.
 
     Function *Caller = StartInst->getFunction();
     // FIXME find the StopInst as we traverse the CFG below, rather than by
@@ -140,6 +140,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     // replace the old one.
     std::vector<Value *> NewOperandsVec;
     NewOperandsVec.push_back(StartInst->getArgOperand(0)); // Add the TracingKind arg.
+    NewOperandsVec.push_back(ConstantInt::get(StartInst->getArgOperand(1)->getType(), NewOperands.size())); // Add the number of inputs.
     for (Value *V: NewOperands) {
       NewOperandsVec.push_back(V);
     }
@@ -147,6 +148,8 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     StartInst->replaceAllUsesWith(NewCall);
     StartInst->eraseFromParent();
   }
+
+  //M.dump();
 
   return PreservedAnalyses::all();
 }
