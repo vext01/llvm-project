@@ -17,7 +17,7 @@ using namespace llvm;
 //
 
 bool ValidTraceInput(Value *V) {
-  if ((isa<Constant>(V)) || (isa<MetadataAsValue>(V)))
+  if ((isa<Constant>(V)) || (isa<MetadataAsValue>(V)) || (isa<BasicBlock>(V)))
     return false;
   return true;
 }
@@ -60,25 +60,30 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     }
     assert(StopInst != nullptr);
 
+    // We can't check these, due to indirect branches.
     // FIXME: write tests for these assertions?
     // Check that to get to `StopInst`, you must have first executed `StartInst`.
-    DominatorTree DT(*Caller);
-    assert(DT.dominates(StartInst, StopInst));
+    //DominatorTree DT(*Caller);
+    //assert(DT.dominates(StartInst, StopInst));
 
     // Check that there's no way to execute `StartInst` without executing
     // `StopInst`.
-    PostDominatorTree PDT(*Caller);
-    assert(PDT.dominates(StopInst, StartInst));
+    //PostDominatorTree PDT(*Caller);
+    //assert(PDT.dominates(StopInst, StartInst));
 
     // Walk the CFG looking for inputs.
     bool FirstBlock = true;
     std::vector<BasicBlock *> Work;
     std::set<Value *> DefinedInTrace;
     std::set<Value *> NewOperands;
+    std::set<BasicBlock *> SeenBlocks;
     Work.push_back(StartInst->getParent());
     while (!Work.empty()) {
       BasicBlock *BB = Work.back();
+      SeenBlocks.insert(BB);
       Work.pop_back();
+      errs() << "Work: ";
+      BB->dump();
       bool ProcessSuccs = true;
       for (auto I = BB->begin(); I != BB->end(); I++) {
         if (FirstBlock) {
@@ -108,6 +113,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
         }
 
         // FIXME: can/should we omit the thread tracer from trace inputs?
+        //errs() << ">> ";
         //I->dump();
         if (isa<CallInst>(I)) {
           // Special case for calls to prevent the callee operand being
@@ -118,6 +124,11 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
             if ((ValidTraceInput(&*O)) && (!DefinedInTrace.count(&*O)))
               NewOperands.insert(O);
           }
+        } else if (isa<PHINode>(I)) {
+          // The operands of a PHI node would confuse us, as they are not
+          // actual uses.
+          // FIXME this isn't right.
+          continue;
         } else {
           //errs() << "Normal\n";
           for (auto &O: I->operands()) {
@@ -131,7 +142,8 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
       if (ProcessSuccs) {
         Instruction *Term = BB->getTerminator();
         for (auto Succ: successors(Term)) {
-          Work.push_back(&*Succ);
+          if (!SeenBlocks.count(Succ)) // Avoid CFG cycles.
+            Work.push_back(&*Succ);
         }
       }
     }
@@ -149,7 +161,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     StartInst->eraseFromParent();
   }
 
-  //M.dump();
+  M.dump();
 
   return PreservedAnalyses::all();
 }
