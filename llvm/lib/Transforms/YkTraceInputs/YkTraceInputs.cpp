@@ -127,7 +127,7 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
         } else if (isa<PHINode>(I)) {
           // The operands of a PHI node would confuse us, as they are not
           // actual uses.
-          // FIXME this isn't right.
+          // FIXME: is this right?
           continue;
         } else {
           //errs() << "Normal\n";
@@ -154,6 +154,10 @@ PreservedAnalyses YkTraceInputsPass::run(Module &M, ModuleAnalysisManager &AM) {
     NewOperandsVec.push_back(StartInst->getArgOperand(0)); // Add the TracingKind arg.
     NewOperandsVec.push_back(ConstantInt::get(StartInst->getArgOperand(1)->getType(), NewOperands.size())); // Add the number of inputs.
     for (Value *V: NewOperands) {
+      //if (isa<AllocInst>(V)) {
+      //  // This value is a pointer by definition and can be used as-is.
+      //} else {
+      //}
       NewOperandsVec.push_back(V);
     }
     CallInst *NewCall = CallInst::Create(StartTracingFunc->getFunctionType(), StartTracingFunc, NewOperandsVec, "", StartInst);
