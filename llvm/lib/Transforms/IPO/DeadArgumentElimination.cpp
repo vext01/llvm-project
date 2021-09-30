@@ -731,6 +731,8 @@ void DeadArgumentEliminationPass::PropagateLiveness(const RetOrArg &RA) {
 //
 bool DeadArgumentEliminationPass::RemoveDeadStuffFromFunction(Function *F) {
   // Don't modify fully live functions
+  // FIXME only for new_control_point.
+  return false;
   if (LiveFunctions.count(F))
     return false;
 
