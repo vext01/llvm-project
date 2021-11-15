@@ -131,6 +131,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
+#include "llvm/Support/GraphWriter.h"
 
 using namespace llvm;
 
@@ -161,6 +163,102 @@ STATISTIC(EmittedInsts, "Number of machine instrs printed");
 char AsmPrinter::ID = 0;
 
 using gcp_map_type = DenseMap<GCStrategy *, std::unique_ptr<GCMetadataPrinter>>;
+
+void walk(std::vector<const MachineBasicBlock *> &Path,
+    std::vector<std::vector<const MachineBasicBlock *>> &Cycles,
+    const MachineBasicBlock *MBB)
+{
+#if 0
+  errs() << "[";
+  for (const MachineBasicBlock *I: Path) {
+		errs() << I << ", ";
+  }
+  errs() << "]\n";
+#endif
+
+	if (std::count(Path.begin(), Path.end(), MBB)) {
+		Path.push_back(MBB);
+		Cycles.push_back(Path);
+		Path.pop_back();
+		return;
+	}
+
+	Path.push_back(MBB);
+	for (const MachineBasicBlock *SuccMBB: MBB->successors()) {
+		assert(SuccMBB != nullptr);
+		if (SuccMBB->getBasicBlock() == MBB->getBasicBlock()) {
+			walk(Path, Cycles, SuccMBB);
+		}
+	}
+	Path.pop_back();
+}
+
+void checkForAmbigs(MachineFunction *MF) {
+  // Create a map from BB to entry MBBs.
+	std::map<const BasicBlock *, std::set<MachineBasicBlock *>> Entries;
+  for (MachineBasicBlock &MB: *MF) {
+    const BasicBlock *BB = MB.getBasicBlock();
+		if (BB == nullptr)
+      continue;
+    for (const MachineBasicBlock *PMB: MB.predecessors()) {
+      if (PMB->getBasicBlock() != BB) { // comes from outside.
+        Entries[BB].insert(&MB);
+#if 0
+        if (Entries[BB].size() > 1) {
+          errs() << "More than one entry MBB\n";
+          //errs() << "Entries:\n";
+          for (MachineBasicBlock *EMBB: Entries[BB]) {
+            //errs() << "ENT:\n";
+            errs() << "  Entry: " << EMBB->getNumber() << "\n";
+            errs() << "Belongs to: " << EMBB->getBasicBlock() << "\n";
+            //errs() << "Has predcessors belonging to:\n";
+            //for (const MachineBasicBlock *XPMB: MB.predecessors()) {
+            //  errs() << XPMB <<"\n";
+            //}
+          }
+          errs() << "Blocks in machine func (mbb num -> irbb id):\n";
+          for (MachineBasicBlock &X: *MF) {
+            errs() << X.getNumber() << " -> " << X.getBasicBlock() << "\n";
+          }
+          //MF->viewCFGOnly();
+          assert(false);
+        }
+#endif
+      }
+    }
+  }
+
+	//errs() << "Checking: " << MF->getFunction().getName() << "\n";
+  for (auto Ent: Entries) {
+    for (const MachineBasicBlock *EntMB: Ent.second) {
+      std::vector<const MachineBasicBlock *> Path;
+      std::vector<std::vector<const MachineBasicBlock *>> Cycles;
+      walk(Path, Cycles, EntMB);
+      if (Cycles.size() > 1) {
+        errs() << ">1 cycle\n";
+				Ent.first->dump();
+        int CycleNum = 0;
+        for (std::vector<const MachineBasicBlock *> C: Cycles) {
+          errs() << "Cycle "<< CycleNum << ": [";
+          for (const MachineBasicBlock *B: C) {
+            errs() << B << ", ";
+          }
+          errs() << "]:\n";
+          for (const MachineBasicBlock *B: C) {
+            B->dump();
+          }
+          CycleNum++;
+        }
+        std::string FN = std::string("/tmp/") + std::string(MF->getName()) + ".dot";
+        WriteGraph(&*MF, "graph", false, "", FN);
+        errs() << "Graph written to: " << FN << "\n";
+
+        assert(false);
+      }
+      //errs() << "  " << Ent.first->getName() << ": " << Cycles.size() << " cycles\n";
+    }
+  }
+}
 
 static gcp_map_type &getGCMap(void *&P) {
   if (!P)
@@ -1516,6 +1614,8 @@ void AsmPrinter::emitFunctionBody() {
   // BB labels are requested for this function. Skip empty functions.
   if (MF->hasBBLabels() && HasAnyRealCode)
     emitBBAddrMapSection(*MF);
+
+  checkForAmbigs(MF);
 
   // Emit section containing stack size metadata.
   emitStackSizeSection(*MF);
