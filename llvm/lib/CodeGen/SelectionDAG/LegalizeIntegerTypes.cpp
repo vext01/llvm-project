@@ -1479,6 +1479,8 @@ bool DAGTypeLegalizer::PromoteIntegerOperand(SDNode *N, unsigned OpNo) {
     default:
   #ifndef NDEBUG
     dbgs() << "PromoteIntegerOperand Op #" << OpNo << ": ";
+    dbgs() << "Int?: " << N->getOperand(OpNo).getValueType().isInteger() << "\n";
+    dbgs() << "Bits: " << N->getOperand(OpNo).getValueType().getScalarSizeInBits() << "\n";
     N->dump(&DAG); dbgs() << "\n";
   #endif
     llvm_unreachable("Do not know how to promote this operator's operand!");

@@ -30448,7 +30448,10 @@ static SDValue LowerCVTPS2PH(SDValue Op, SelectionDAG &DAG) {
 /// Provide custom lowering hooks for some operations.
 SDValue X86TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
-  default: llvm_unreachable("Should not custom lower this!");
+  default: {
+             Op.dump();
+             llvm_unreachable("Should not custom lower this!");
+           }
   case ISD::ATOMIC_FENCE:       return LowerATOMIC_FENCE(Op, Subtarget, DAG);
   case ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS:
     return LowerCMP_SWAP(Op, Subtarget, DAG);
