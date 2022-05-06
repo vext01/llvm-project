@@ -51,6 +51,7 @@
 #include "llvm/CodeGen/SchedulerRegistry.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/StackProtector.h"
 #include "llvm/CodeGen/SwiftErrorValueTracking.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
@@ -2241,6 +2242,60 @@ void SelectionDAGISel::Select_ARITH_FENCE(SDNode *N) {
                        N->getOperand(0));
 }
 
+void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
+  std::vector<SDValue> Ops;
+  auto *It = N->op_begin();
+  SDLoc DL(N);
+
+  // Stash the chain and glue operands so we can move them to the end.
+  SDValue Chain = *It++;
+  SDValue InFlag = *It++;
+
+  // <id> operand.
+  SDValue ID = It->get();
+  assert(ID.getOpcode() == ISD::Constant);
+  assert(ID.getValueType() == MVT::i64);
+  SDValue IDConst = CurDAG->getTargetConstant(
+      cast<ConstantSDNode>(ID)->getZExtValue(), DL, ID.getValueType());
+  Ops.push_back(IDConst);
+  It++;
+
+  // <numBytes> operand.
+  SDValue Shad = It->get();
+  assert(Shad.getOpcode() == ISD::Constant);
+  assert(Shad.getValueType() == MVT::i32);
+  SDValue ShadConst = CurDAG->getTargetConstant(
+      cast<ConstantSDNode>(Shad)->getZExtValue(), DL, Shad.getValueType());
+  Ops.push_back(ShadConst);
+  It++;
+
+  // Live variable operands.
+  for (; It != N->op_end(); It++) {
+    SDNode *OpNode = It->getNode();
+    SDValue O;
+    if (OpNode->getOpcode() == ISD::Constant) {
+      Ops.push_back(
+          CurDAG->getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
+      O = CurDAG->getTargetConstant(
+          cast<ConstantSDNode>(OpNode)->getZExtValue(), DL, It->getValueType());
+    } else if (OpNode->getOpcode() == ISD::FrameIndex) {
+      FrameIndexSDNode *FI = cast<FrameIndexSDNode>(OpNode);
+      O = CurDAG->getTargetFrameIndex(FI->getIndex(), It->getValueType());
+    } else {
+      // Otherwise it's a register.
+      // XXX ^^ is this true?
+      O = *It; // XXX Also does this guarantee register selection?
+    }
+    Ops.push_back(O);
+  }
+
+  Ops.push_back(Chain);
+  Ops.push_back(InFlag);
+
+  SDVTList NodeTys = CurDAG->getVTList(MVT::Other, MVT::Glue);
+  CurDAG->SelectNodeTo(N, TargetOpcode::STACKMAP, NodeTys, Ops);
+}
+
 /// GetVBR - decode a vbr encoding whose top bit is set.
 LLVM_ATTRIBUTE_ALWAYS_INLINE static uint64_t
 GetVBR(uint64_t Val, const unsigned char *MatcherTable, unsigned &Idx) {
@@ -2794,6 +2849,9 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
     return;
   case ISD::ARITH_FENCE:
     Select_ARITH_FENCE(NodeToMatch);
+    return;
+  case ISD::STACKMAP:
+    Select_STACKMAP(NodeToMatch);
     return;
   }
 
