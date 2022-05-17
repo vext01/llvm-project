@@ -475,6 +475,7 @@ NodeDone:
 
     if (Failed) {
       Node.dump(&DAG); dbgs() << "\n";
+      DAG.dump();
       llvm_unreachable(nullptr);
     }
   }
