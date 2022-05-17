@@ -9408,8 +9408,24 @@ void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
   Operands.push_back(Chain);
   Operands.push_back(InFlag);
 
-  // Add the <id>, <numShadowBytes> and live variables arguments.
-  for (unsigned I = 0; I < CI.arg_size(); I++)
+  // Add the <id>, <numShadowBytes> operands.
+  //
+  // These do not require legalisation, and can be emitted directly to target
+  // constant nodes.
+  SDValue ID = getValue(CI.getArgOperand(0));
+  assert(ID.getValueType() == MVT::i64);
+  SDValue IDConst = DAG.getTargetConstant(
+      cast<ConstantSDNode>(ID)->getZExtValue(), DL, ID.getValueType());
+  Operands.push_back(IDConst);
+
+  SDValue Shad = getValue(CI.getArgOperand(1));
+  assert(Shad.getValueType() == MVT::i32);
+  SDValue ShadConst = DAG.getTargetConstant(
+      cast<ConstantSDNode>(Shad)->getZExtValue(), DL, Shad.getValueType());
+  Operands.push_back(ShadConst);
+
+  // Add the live variables.
+  for (unsigned I = 2; I < CI.arg_size(); I++)
     Operands.push_back(getValue(CI.getArgOperand(I)));
 
   // Create the STACKMAP node.

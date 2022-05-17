@@ -2252,21 +2252,15 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
   SDValue InFlag = *It++;
 
   // <id> operand.
-  SDValue ID = It->get();
-  assert(ID.getOpcode() == ISD::Constant);
+  SDValue ID = *It;
   assert(ID.getValueType() == MVT::i64);
-  SDValue IDConst = CurDAG->getTargetConstant(
-      cast<ConstantSDNode>(ID)->getZExtValue(), DL, ID.getValueType());
-  Ops.push_back(IDConst);
+  Ops.push_back(ID);
   It++;
 
-  // <numBytes> operand.
-  SDValue Shad = It->get();
-  assert(Shad.getOpcode() == ISD::Constant);
+  // <numShadowBytes> operand.
+  SDValue Shad = *It;
   assert(Shad.getValueType() == MVT::i32);
-  SDValue ShadConst = CurDAG->getTargetConstant(
-      cast<ConstantSDNode>(Shad)->getZExtValue(), DL, Shad.getValueType());
-  Ops.push_back(ShadConst);
+  Ops.push_back(Shad);
   It++;
 
   // Live variable operands.
