@@ -2267,6 +2267,11 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
   for (; It != N->op_end(); It++) {
     SDNode *OpNode = It->getNode();
     SDValue O;
+
+    // FrameIndex nodes should have been directly emitted to TargetFrameIndex
+    // nodes at DAG-construction time.
+    assert (OpNode->getOpcode() != ISD::FrameIndex);
+
     if (OpNode->getOpcode() == ISD::Constant) {
       Ops.push_back(
           CurDAG->getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
@@ -2276,9 +2281,7 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
       FrameIndexSDNode *FI = cast<FrameIndexSDNode>(OpNode);
       O = CurDAG->getTargetFrameIndex(FI->getIndex(), It->getValueType());
     } else {
-      // Otherwise it's a register.
-      // XXX ^^ is this true?
-      O = *It; // XXX Also does this guarantee register selection?
+      O = *It;
     }
     Ops.push_back(O);
   }

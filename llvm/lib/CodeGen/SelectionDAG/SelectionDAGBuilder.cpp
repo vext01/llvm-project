@@ -9425,8 +9425,20 @@ void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
   Operands.push_back(ShadConst);
 
   // Add the live variables.
-  for (unsigned I = 2; I < CI.arg_size(); I++)
-    Operands.push_back(getValue(CI.getArgOperand(I)));
+  for (unsigned I = 2; I < CI.arg_size(); I++) {
+    SDValue Op = getValue(CI.getArgOperand(I));
+
+    // Things on the stack are pointer-typed, meaning that they are already
+    // legal and can be emitted directly to target nodes.
+    if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
+      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+      Operands.push_back(DAG.getTargetFrameIndex(
+          FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
+      } else {
+        // Otherwise emit a target independent node to be legalised.
+        Operands.push_back(getValue(CI.getArgOperand(I)));
+      }
+  }
 
   // Create the STACKMAP node.
   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
