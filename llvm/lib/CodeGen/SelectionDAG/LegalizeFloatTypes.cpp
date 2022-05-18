@@ -2916,7 +2916,6 @@ bool DAGTypeLegalizer::SoftPromoteHalfOperand(SDNode *N, unsigned OpNo) {
   assert(Res.getNode() != N && "Expected a new node!");
 
   assert(Res.getValueType() == N->getValueType(0) &&
-              N->getNumValues() == Res->getNumValues() &&
               "Invalid operand expansion");
 
   for (unsigned ResNum = 0; ResNum < N->getNumValues(); ResNum++)
@@ -3042,18 +3041,7 @@ SDValue DAGTypeLegalizer::SoftPromoteHalfOp_STORE(SDNode *N, unsigned OpNo) {
 SDValue DAGTypeLegalizer::SoftPromoteHalfOp_STACKMAP(SDNode *N, unsigned OpNo) {
   assert(OpNo > 1); // Because the first two arguments are guaranteed legal.
   SmallVector<SDValue> NewOps(N->ops().begin(), N->ops().end());
-
   SDValue Op = N->getOperand(OpNo);
-  SDLoc DL(N);
-
-  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType());
-  Op = GetSoftPromotedHalf(Op);
-  NewOps[OpNo] = DAG.getNode(ISD::FP16_TO_FP, DL, NVT, Op);
-
-  SDVTList Tys = DAG.getVTList(MVT::Other, MVT::Glue);
-  SDValue New = DAG.getNode(N->getOpcode(), DL, Tys, NewOps);
-
-  New->dump();
-
-  return New;
+  NewOps[OpNo] = GetSoftPromotedHalf(Op);
+  return DAG.getNode(N->getOpcode(), SDLoc(N), N->getVTList(), NewOps);
 }
