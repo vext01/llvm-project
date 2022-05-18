@@ -1,4 +1,50 @@
-; RUN: llc -debug-only=legalize-types -print-after=finalize-isel %s -O1 -mtriple=x86_64-unknown-unknown -o /dev/null 2>&1 | FileCheck %s
+; RUN: llc < %s -mtriple=x86_64-apple-darwin -mcpu=corei7-avx -enable-patchpoint-liveness=false | FileCheck %s
+
+; CHECK-LABEL:  .section  __LLVM_STACKMAPS,__llvm_stackmaps
+; CHECK-NEXT:   __LLVM_StackMaps:
+
+; Header
+; CHECK-NEXT:   .byte 3
+; CHECK-NEXT:   .byte 0
+; CHECK-NEXT:   .short 0
+
+; NumFunctions
+; CHECK-NEXT:   .long 1
+; NumConstants
+; CHECK-NEXT:   .long 0
+; NumRecords
+; CHECK-NEXT:   .long 1
+
+; StackSizeRecord[NumFunctions]
+;   StackSizeRecord[0]
+;     CHECK-NEXT:   .quad _main
+;     CHECK-NEXT:   .quad 8
+;     CHECK-NEXT:   .quad 1
+
+; Constants[NumConstants] (empty)
+
+; StkMapRecord[NumRecords]
+;   StkMapRecord[0]
+;     CHECK-NEXT:	.quad 0
+;     CHECK-NEXT:   .long {{.*}}
+;     CHECK-NEXT:   .short {{.*}}
+;     NumLocations
+;     CHECK-NEXT:   .short 2
+;     Location[NumLocations]
+;       Location[0]
+;         CHECK-NEXT: .byte   1
+;         CHECK-NEXT: .byte   0
+;         CHECK-NEXT: .short  1
+;         CHECK-NEXT: .short  {{.*}}
+;         CHECK-NEXT: .short  0
+;         CHECK-NEXT: .long   0
+;       Location[1]
+;         CHECK-NEXT: .byte   4
+;         CHECK-NEXT: .byte   0
+;         CHECK-NEXT: .short  8
+;         CHECK-NEXT: .short  0
+;         CHECK-NEXT: .short  0
+;         CHECK-NEXT: .long   22
 
 
 declare void @llvm.experimental.stackmap(i64, i32, ...)
@@ -6,44 +52,6 @@ declare void @llvm.experimental.stackmap(i64, i32, ...)
 define dso_local i32 @main(i32 %argc, i8** %argv) {
 entry:
   %x = icmp eq i32 %argc, 5
-  call void (i64, i32, ...) @llvm.experimental.stackmap(i64 0, i32 0, i1 %x, i7 2)
-  ; CHECK: Legalizing node: t14: ch,glue = stackmap t10, t10:1, Constant:i64<0>, Constant:i32<0>, t7, Constant:i7<2>
-  ; CHECK-NEXT: Analyzing result type: ch
-  ; CHECK-NEXT: Legal result type
-  ; CHECK-NEXT: Analyzing result type: glue
-  ; CHECK-NEXT: Legal result type
-  ; CHECK-NEXT: Analyzing operand: t10: ch,glue = callseq_start t0, TargetConstant:i64<0>, TargetConstant:i64<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t10: ch,glue = callseq_start t0, TargetConstant:i64<0>, TargetConstant:i64<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t11: i64 = Constant<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t12: i32 = Constant<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t7: i1 = setcc t2, Constant:i32<5>, seteq:ch
-  ; CHECK-NEXT: Promote integer operand: t14: ch,glue = stackmap t10, t10:1, Constant:i64<0>, Constant:i32<0>, t7, Constant:i7<2>
-
-  ; CHECK: Legalizing node: t14: ch,glue = stackmap t10, t10:1, Constant:i64<0>, Constant:i32<0>, t23, Constant:i7<2>
-  ; CHECK-NEXT: Analyzing result type: ch
-  ; CHECK-NEXT: Legal result type
-  ; CHECK-NEXT: Analyzing result type: glue
-  ; CHECK-NEXT: Legal result type
-  ; CHECK-NEXT: Analyzing operand: t10: ch,glue = callseq_start t0, TargetConstant:i64<0>, TargetConstant:i64<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t10: ch,glue = callseq_start t0, TargetConstant:i64<0>, TargetConstant:i64<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t11: i64 = Constant<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t12: i32 = Constant<0>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t23: i8 = and t21, Constant:i8<1>
-  ; CHECK-NEXT: Legal operand
-  ; CHECK-NEXT: Analyzing operand: t13: i7 = Constant<2>
-  ; CHECK-NEXT: Promote integer operand: t14: ch,glue = stackmap t10, t10:1, Constant:i64<0>, Constant:i32<0>, t23, Constant:i7<2>
-
-  ; CHECK: # Machine code for function main
-  ; CHECK: bb.0.entry:
-  ; CHECK: STACKMAP 0, 0, killed %3:gr8, 2, 2, implicit-def dead early-clobber $r11
-  ; CHECK: # End machine code for function main
+  call void (i64, i32, ...) @llvm.experimental.stackmap(i64 0, i32 0, i1 %x, i7 22)
   ret i32 0
 }
