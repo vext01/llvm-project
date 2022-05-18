@@ -9434,10 +9434,10 @@ void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
       const TargetLowering &TLI = DAG.getTargetLoweringInfo();
       Operands.push_back(DAG.getTargetFrameIndex(
           FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
-      } else {
-        // Otherwise emit a target independent node to be legalised.
-        Operands.push_back(getValue(CI.getArgOperand(I)));
-      }
+    } else {
+      // Otherwise emit a target independent node to be legalised.
+      Operands.push_back(getValue(CI.getArgOperand(I)));
+    }
   }
 
   // Create the STACKMAP node.

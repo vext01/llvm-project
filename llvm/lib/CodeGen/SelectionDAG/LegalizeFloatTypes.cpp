@@ -2907,7 +2907,9 @@ bool DAGTypeLegalizer::SoftPromoteHalfOperand(SDNode *N, unsigned OpNo) {
   case ISD::SELECT_CC:  Res = SoftPromoteHalfOp_SELECT_CC(N, OpNo); break;
   case ISD::SETCC:      Res = SoftPromoteHalfOp_SETCC(N); break;
   case ISD::STORE:      Res = SoftPromoteHalfOp_STORE(N, OpNo); break;
-  case ISD::STACKMAP:   Res = SoftPromoteHalfOp_STACKMAP(N, OpNo); break;
+  case ISD::STACKMAP:
+    Res = SoftPromoteHalfOp_STACKMAP(N, OpNo);
+    break;
   }
 
   if (!Res.getNode())
@@ -2916,10 +2918,10 @@ bool DAGTypeLegalizer::SoftPromoteHalfOperand(SDNode *N, unsigned OpNo) {
   assert(Res.getNode() != N && "Expected a new node!");
 
   assert(Res.getValueType() == N->getValueType(0) &&
-              "Invalid operand expansion");
+         "Invalid operand expansion");
 
   for (unsigned ResNum = 0; ResNum < N->getNumValues(); ResNum++)
-      ReplaceValueWith(SDValue(N, ResNum), Res.getValue(ResNum));
+    ReplaceValueWith(SDValue(N, ResNum), Res.getValue(ResNum));
 
   return false;
 }

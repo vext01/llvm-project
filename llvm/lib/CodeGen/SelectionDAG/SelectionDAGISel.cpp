@@ -2270,7 +2270,7 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
 
     // FrameIndex nodes should have been directly emitted to TargetFrameIndex
     // nodes at DAG-construction time.
-    assert (OpNode->getOpcode() != ISD::FrameIndex);
+    assert(OpNode->getOpcode() != ISD::FrameIndex);
 
     if (OpNode->getOpcode() == ISD::Constant) {
       Ops.push_back(
