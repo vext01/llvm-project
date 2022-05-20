@@ -19,6 +19,7 @@
 
 #include "LegalizeTypes.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
@@ -4624,6 +4625,7 @@ bool DAGTypeLegalizer::ExpandIntegerOperand(SDNode *N, unsigned OpNo) {
   case ISD::FRAMEADDR:         Res = ExpandIntOp_RETURNADDR(N); break;
 
   case ISD::ATOMIC_STORE:      Res = ExpandIntOp_ATOMIC_STORE(N); break;
+  case ISD::STACKMAP:          Res = ExpandIntOp_STACKMAP(N, OpNo); break;
   }
 
   // If the result is null, the sub-method took care of registering results etc.
@@ -4634,10 +4636,12 @@ bool DAGTypeLegalizer::ExpandIntegerOperand(SDNode *N, unsigned OpNo) {
   if (Res.getNode() == N)
     return true;
 
-  assert(Res.getValueType() == N->getValueType(0) && N->getNumValues() == 1 &&
+  assert(Res.getValueType() == N->getValueType(0) &&
          "Invalid operand expansion");
 
-  ReplaceValueWith(SDValue(N, 0), Res);
+  for (unsigned ResNum = 0; ResNum < N->getNumValues(); ResNum++)
+    ReplaceValueWith(SDValue(N, ResNum), Res.getValue(ResNum));
+
   return false;
 }
 
@@ -5467,4 +5471,33 @@ SDValue DAGTypeLegalizer::PromoteIntOp_CONCAT_VECTORS(SDNode *N) {
   }
 
   return DAG.getBuildVector(N->getValueType(0), dl, NewOps);
+}
+
+SDValue DAGTypeLegalizer::ExpandIntOp_STACKMAP(SDNode *N, unsigned OpNo) {
+  assert(OpNo > 1);
+
+  SDValue Op = N->getOperand(OpNo);
+  SDLoc DL = SDLoc(N);
+  SmallVector<SDValue> NewOps;
+
+  // Copy operands before the one being expanded.
+  for (unsigned I = 0; I < OpNo; I++)
+    NewOps.push_back(N->getOperand(I));
+
+  if (Op->getOpcode() == ISD::Constant) {
+    // We don't want to expand the constant, so let's emit a target constant.
+    ConstantSDNode *CN = cast<ConstantSDNode>(Op);
+    EVT Ty = Op.getValueType();
+    NewOps.push_back(DAG.getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
+    NewOps.push_back(DAG.getTargetConstant(CN->getZExtValue(), DL, Ty));
+  } else {
+    // FIXME: https://github.com/llvm/llvm-project/issues/26431
+    DAG.getContext()->emitError("Can't expand stackmap operand");
+  }
+
+  // Copy remaining operands.
+  for (unsigned I = OpNo + 1; I < N->getNumOperands(); I++)
+    NewOps.push_back(N->getOperand(I));
+
+  return DAG.getNode(N->getOpcode(), DL, N->getVTList(), NewOps);
 }
