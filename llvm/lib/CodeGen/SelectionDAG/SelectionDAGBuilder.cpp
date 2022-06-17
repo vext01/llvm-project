@@ -9530,6 +9530,19 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   // Replace the target specific call node with the patchable intrinsic.
   SmallVector<SDValue, 8> Ops;
 
+  // Push the chain.
+  Ops.push_back(*(Call->op_begin()));
+
+  // Optionally, push the glue (if any).
+  if (HasGlue)
+    Ops.push_back(*(Call->op_end()-1));
+
+  // Push the register mask info.
+  if (HasGlue)
+    Ops.push_back(*(Call->op_end()-2));
+  else
+    Ops.push_back(*(Call->op_end()-1));
+
   // Add the <id> and <numBytes> constants.
   SDValue IDVal = getValue(CB.getArgOperand(PatchPointOpers::IDPos));
   Ops.push_back(DAG.getTargetConstant(
@@ -9558,26 +9571,28 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
     for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i)
       Ops.push_back(getValue(CB.getArgOperand(i)));
 
-  // Push the arguments from the call instruction up to the register mask.
+  // Push the arguments from the call instruction.
   SDNode::op_iterator e = HasGlue ? Call->op_end()-2 : Call->op_end()-1;
   Ops.append(Call->op_begin() + 2, e);
 
   // Push live variables for the stack map.
-  addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
+  //addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
+  //
+  // Add the live variables. XXX factor out.
+  for (unsigned I = NumMetaOpers + NumArgs; I < CB.arg_size(); I++) {
+    SDValue Op = getValue(CB.getArgOperand(I));
 
-  // Push the register mask info.
-  if (HasGlue)
-    Ops.push_back(*(Call->op_end()-2));
-  else
-    Ops.push_back(*(Call->op_end()-1));
-
-  // Push the chain (this is originally the first operand of the call, but
-  // becomes now the last or second to last operand).
-  Ops.push_back(*(Call->op_begin()));
-
-  // Push the glue flag (last operand).
-  if (HasGlue)
-    Ops.push_back(*(Call->op_end()-1));
+    // Things on the stack are pointer-typed, meaning that they are already
+    // legal and can be emitted directly to target nodes.
+    if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
+      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+      Ops.push_back(DAG.getTargetFrameIndex(
+          FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
+    } else {
+      // Otherwise emit a target independent node to be legalised.
+      Ops.push_back(getValue(CB.getArgOperand(I)));
+    }
+  }
 
   SDVTList NodeTys;
   if (IsAnyRegCC && HasDef) {
@@ -9591,17 +9606,17 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
     ValueVTs.push_back(MVT::Other);
     ValueVTs.push_back(MVT::Glue);
     NodeTys = DAG.getVTList(ValueVTs);
-  } else
+  } else {
     NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
+  }
 
   // Replace the target specific call node with a PATCHPOINT node.
-  MachineSDNode *MN = DAG.getMachineNode(TargetOpcode::PATCHPOINT,
-                                         dl, NodeTys, Ops);
+  SDValue PPV = DAG.getNode(ISD::PATCHPOINT, dl, NodeTys, Ops);
 
   // Update the NodeMap.
   if (HasDef) {
     if (IsAnyRegCC)
-      setValue(&CB, SDValue(MN, 0));
+      setValue(&CB, SDValue(PPV.getNode(), 0));
     else
       setValue(&CB, Result.first);
   }
@@ -9612,10 +9627,10 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   // value.
   if (IsAnyRegCC && HasDef) {
     SDValue From[] = {SDValue(Call, 0), SDValue(Call, 1)};
-    SDValue To[] = {SDValue(MN, 1), SDValue(MN, 2)};
+    SDValue To[] = {PPV.getValue(1), PPV.getValue(2)};
     DAG.ReplaceAllUsesOfValuesWith(From, To, 2);
   } else
-    DAG.ReplaceAllUsesWith(Call, MN);
+    DAG.ReplaceAllUsesWith(Call, PPV.getNode());
   DAG.DeleteNode(Call);
 
   // Inform the Frame Information that we have a patchpoint in this function.
