@@ -3063,7 +3063,8 @@ SDValue DAGTypeLegalizer::SoftPromoteHalfOp_STACKMAP(SDNode *N, unsigned OpNo) {
   return SDValue(); // Signal that we replaced the node ourselves.
 }
 
-SDValue DAGTypeLegalizer::SoftPromoteHalfOp_PATCHPOINT(SDNode *N, unsigned OpNo) {
+SDValue DAGTypeLegalizer::SoftPromoteHalfOp_PATCHPOINT(SDNode *N,
+                                                       unsigned OpNo) {
   assert(OpNo >= 7);
   SmallVector<SDValue> NewOps(N->ops().begin(), N->ops().end());
   SDValue Op = N->getOperand(OpNo);

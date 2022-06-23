@@ -9537,13 +9537,13 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
 
   // Optionally, push the glue (if any).
   if (HasGlue)
-    Ops.push_back(*(Call->op_end()-1));
+    Ops.push_back(*(Call->op_end() - 1));
 
   // Push the register mask info.
   if (HasGlue)
-    Ops.push_back(*(Call->op_end()-2));
+    Ops.push_back(*(Call->op_end() - 2));
   else
-    Ops.push_back(*(Call->op_end()-1));
+    Ops.push_back(*(Call->op_end() - 1));
 
   // Add the <id> and <numBytes> constants.
   SDValue IDVal = getValue(CB.getArgOperand(PatchPointOpers::IDPos));
@@ -9578,7 +9578,7 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   Ops.append(Call->op_begin() + 2, e);
 
   // Push live variables for the stack map.
-  //addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
+  // addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
   //
   // Add the live variables. XXX factor out.
   for (unsigned I = NumMetaOpers + NumArgs; I < CB.arg_size(); I++) {

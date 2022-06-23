@@ -1291,7 +1291,8 @@ enum NodeType {
   STACKMAP,
 
   // The `llvm.experimental.patchpoint.*` intrinsic.
-  // Operands: input chain, [glue], reg-mask, <id>, <numShadowBytes>, callee, <numArgs>, cc, ...
+  // Operands: input chain, [glue], reg-mask, <id>, <numShadowBytes>, callee,
+  //   <numArgs>, cc, ...
   // Outputs: [rv], output chain, glue
   PATCHPOINT,
 

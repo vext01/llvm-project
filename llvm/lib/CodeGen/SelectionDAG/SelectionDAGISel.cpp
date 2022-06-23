@@ -2242,21 +2242,23 @@ void SelectionDAGISel::Select_ARITH_FENCE(SDNode *N) {
                        N->getOperand(0));
 }
 
-void SelectionDAGISel::pushStackMapLiveVariables(SmallVectorImpl<SDValue> &Ops, SDValue OpVal, SDLoc DL) {
-    SDNode *OpNode = OpVal.getNode();
+void SelectionDAGISel::pushStackMapLiveVariables(SmallVectorImpl<SDValue> &Ops,
+                                                 SDValue OpVal, SDLoc DL) {
+  SDNode *OpNode = OpVal.getNode();
 
-    // FrameIndex nodes should have been directly emitted to TargetFrameIndex
-    // nodes at DAG-construction time.
-    assert(OpNode->getOpcode() != ISD::FrameIndex);
+  // FrameIndex nodes should have been directly emitted to TargetFrameIndex
+  // nodes at DAG-construction time.
+  assert(OpNode->getOpcode() != ISD::FrameIndex);
 
-    if (OpNode->getOpcode() == ISD::Constant) {
-      Ops.push_back(
-          CurDAG->getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
-      Ops.push_back(CurDAG->getTargetConstant(
-          cast<ConstantSDNode>(OpNode)->getZExtValue(), DL, OpVal.getValueType()));
-    } else {
-      Ops.push_back(OpVal);
-    }
+  if (OpNode->getOpcode() == ISD::Constant) {
+    Ops.push_back(
+        CurDAG->getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
+    Ops.push_back(
+        CurDAG->getTargetConstant(cast<ConstantSDNode>(OpNode)->getZExtValue(),
+                                  DL, OpVal.getValueType()));
+  } else {
+    Ops.push_back(OpVal);
+  }
 }
 
 void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
@@ -2289,7 +2291,6 @@ void SelectionDAGISel::Select_STACKMAP(SDNode *N) {
   CurDAG->SelectNodeTo(N, TargetOpcode::STACKMAP, NodeTys, Ops);
 }
 
-// Operands: input chain, [glue], reg-mask, <id>, <numShadowBytes>, callee, <numArgs>, cc, ...
 void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   SmallVector<SDValue, 32> Ops;
   auto *It = N->op_begin();
@@ -2299,7 +2300,7 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   SDValue Chain = *It++;
   Optional<SDValue> Glue;
   if (It->getValueType() == MVT::Glue)
-      Glue = *It++;
+    Glue = *It++;
   SDValue RegMask = *It++;
 
   // <id> operand.
@@ -2335,7 +2336,7 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   Ops.push_back(RegMask);
   Ops.push_back(Chain);
   if (Glue.hasValue())
-      Ops.push_back(Glue.getValue());
+    Ops.push_back(Glue.getValue());
 
   SDVTList NodeTys = N->getVTList();
   CurDAG->SelectNodeTo(N, TargetOpcode::PATCHPOINT, NodeTys, Ops);
