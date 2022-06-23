@@ -9356,7 +9356,6 @@ void SelectionDAGBuilder::populateCallLoweringInfo(
           Call->countOperandBundlesOfType(LLVMContext::OB_preallocated) != 0);
 }
 
-#if 0
 /// Add a stack map intrinsic call's live variable operands to a stackmap
 /// or patchpoint target node's operand list.
 ///
@@ -9377,22 +9376,22 @@ void SelectionDAGBuilder::populateCallLoweringInfo(
 static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
                                 const SDLoc &DL, SmallVectorImpl<SDValue> &Ops,
                                 SelectionDAGBuilder &Builder) {
-  for (unsigned i = StartIdx, e = Call.arg_size(); i != e; ++i) {
-    SDValue OpVal = Builder.getValue(Call.getArgOperand(i));
-    if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(OpVal)) {
-      Ops.push_back(
-        Builder.DAG.getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
-      Ops.push_back(
-        Builder.DAG.getTargetConstant(C->getSExtValue(), DL, MVT::i64));
-    } else if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(OpVal)) {
-      const TargetLowering &TLI = Builder.DAG.getTargetLoweringInfo();
-      Ops.push_back(Builder.DAG.getTargetFrameIndex(
-          FI->getIndex(), TLI.getFrameIndexTy(Builder.DAG.getDataLayout())));
-    } else
-      Ops.push_back(OpVal);
+  SelectionDAG &DAG = Builder.DAG;
+  for (unsigned I = StartIdx; I < Call.arg_size(); I++) {
+    SDValue Op = Builder.getValue(Call.getArgOperand(I));
+
+    // Things on the stack are pointer-typed, meaning that they are already
+    // legal and can be emitted directly to target nodes.
+    if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
+      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+      Ops.push_back(DAG.getTargetFrameIndex(
+          FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
+    } else {
+      // Otherwise emit a target independent node to be legalised.
+      Ops.push_back(Builder.getValue(Call.getArgOperand(I)));
+    }
   }
 }
-#endif
 
 /// Lower llvm.experimental.stackmap.
 void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
@@ -9442,20 +9441,7 @@ void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
   Ops.push_back(ShadConst);
 
   // Add the live variables.
-  for (unsigned I = 2; I < CI.arg_size(); I++) {
-    SDValue Op = getValue(CI.getArgOperand(I));
-
-    // Things on the stack are pointer-typed, meaning that they are already
-    // legal and can be emitted directly to target nodes.
-    if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
-      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-      Ops.push_back(DAG.getTargetFrameIndex(
-          FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
-    } else {
-      // Otherwise emit a target independent node to be legalised.
-      Ops.push_back(getValue(CI.getArgOperand(I)));
-    }
-  }
+  addStackMapLiveVars(CI, 2, DL, Ops, *this);
 
   // Create the STACKMAP node.
   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
@@ -9578,23 +9564,7 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   Ops.append(Call->op_begin() + 2, e);
 
   // Push live variables for the stack map.
-  // addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
-  //
-  // Add the live variables. XXX factor out.
-  for (unsigned I = NumMetaOpers + NumArgs; I < CB.arg_size(); I++) {
-    SDValue Op = getValue(CB.getArgOperand(I));
-
-    // Things on the stack are pointer-typed, meaning that they are already
-    // legal and can be emitted directly to target nodes.
-    if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
-      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-      Ops.push_back(DAG.getTargetFrameIndex(
-          FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
-    } else {
-      // Otherwise emit a target independent node to be legalised.
-      Ops.push_back(getValue(CB.getArgOperand(I)));
-    }
-  }
+  addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
 
   SDVTList NodeTys;
   if (IsAnyRegCC && HasDef) {
