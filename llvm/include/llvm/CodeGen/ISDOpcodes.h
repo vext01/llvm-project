@@ -1292,7 +1292,7 @@ enum NodeType {
 
   // The `llvm.experimental.patchpoint.*` intrinsic.
   // Operands: input chain, [glue], reg-mask, <id>, <numShadowBytes>, callee, <numArgs>, cc, ...
-  // Outputs: output chain, glue, rv
+  // Outputs: [rv], output chain, glue
   PATCHPOINT,
 
 // Vector Predication

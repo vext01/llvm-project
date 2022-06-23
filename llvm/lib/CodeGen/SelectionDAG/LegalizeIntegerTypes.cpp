@@ -2319,8 +2319,7 @@ SDValue DAGTypeLegalizer::PromoteIntOp_STACKMAP(SDNode *N, unsigned OpNo) {
 }
 
 SDValue DAGTypeLegalizer::PromoteIntOp_PATCHPOINT(SDNode *N, unsigned OpNo) {
-  // XXX
-  //assert(OpNo > 1); // Because the first two arguments are guaranteed legal.
+  assert(OpNo >= 7);
   SmallVector<SDValue> NewOps(N->ops().begin(), N->ops().end());
   NewOps[OpNo] = ZExtPromotedInteger(N->getOperand(OpNo));
   return SDValue(DAG.UpdateNodeOperands(N, NewOps), 0);
@@ -4676,8 +4675,10 @@ bool DAGTypeLegalizer::ExpandIntegerOperand(SDNode *N, unsigned OpNo) {
 
   case ISD::ATOMIC_STORE:      Res = ExpandIntOp_ATOMIC_STORE(N); break;
   case ISD::STACKMAP:
-  case ISD::PATCHPOINT:
     Res = ExpandIntOp_STACKMAP(N, OpNo);
+    break;
+  case ISD::PATCHPOINT:
+    Res = ExpandIntOp_PATCHPOINT(N, OpNo);
     break;
   }
 
@@ -5509,8 +5510,41 @@ SDValue DAGTypeLegalizer::PromoteIntOp_CONCAT_VECTORS(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::ExpandIntOp_STACKMAP(SDNode *N, unsigned OpNo) {
-  //assert(OpNo > 1);
+  assert(OpNo > 1);
+  SDValue Op = N->getOperand(OpNo);
+  SDLoc DL = SDLoc(N);
+  SmallVector<SDValue> NewOps;
 
+  // Copy operands before the one being expanded.
+  for (unsigned I = 0; I < OpNo; I++)
+    NewOps.push_back(N->getOperand(I));
+
+  if (Op->getOpcode() == ISD::Constant) {
+    // FIXME: https://github.com/llvm/llvm-project/issues/55609
+    ConstantSDNode *CN = cast<ConstantSDNode>(Op);
+    EVT Ty = Op.getValueType();
+    NewOps.push_back(
+        DAG.getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
+    NewOps.push_back(DAG.getTargetConstant(CN->getZExtValue(), DL, Ty));
+  } else {
+    // FIXME: https://github.com/llvm/llvm-project/issues/26431
+    DAG.getContext()->emitError("Can't expand stackmap operand");
+  }
+
+  // Copy remaining operands.
+  for (unsigned I = OpNo + 1; I < N->getNumOperands(); I++)
+    NewOps.push_back(N->getOperand(I));
+
+  SDValue NewNode = DAG.getNode(N->getOpcode(), DL, N->getVTList(), NewOps);
+
+  for (unsigned ResNum = 0; ResNum < N->getNumValues(); ResNum++)
+    ReplaceValueWith(SDValue(N, ResNum), NewNode.getValue(ResNum));
+
+  return SDValue(); // Signal that we have replaced the node already.
+}
+
+SDValue DAGTypeLegalizer::ExpandIntOp_PATCHPOINT(SDNode *N, unsigned OpNo) {
+  assert(OpNo >= 7);
   SDValue Op = N->getOperand(OpNo);
   SDLoc DL = SDLoc(N);
   SmallVector<SDValue> NewOps;

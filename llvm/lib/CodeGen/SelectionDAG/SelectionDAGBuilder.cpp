@@ -9356,6 +9356,7 @@ void SelectionDAGBuilder::populateCallLoweringInfo(
           Call->countOperandBundlesOfType(LLVMContext::OB_preallocated) != 0);
 }
 
+#if 0
 /// Add a stack map intrinsic call's live variable operands to a stackmap
 /// or patchpoint target node's operand list.
 ///
@@ -9391,6 +9392,7 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
       Ops.push_back(OpVal);
   }
 }
+#endif
 
 /// Lower llvm.experimental.stackmap.
 void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
@@ -9606,9 +9608,8 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
     ValueVTs.push_back(MVT::Other);
     ValueVTs.push_back(MVT::Glue);
     NodeTys = DAG.getVTList(ValueVTs);
-  } else {
+  } else
     NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
-  }
 
   // Replace the target specific call node with a PATCHPOINT node.
   SDValue PPV = DAG.getNode(ISD::PATCHPOINT, dl, NodeTys, Ops);

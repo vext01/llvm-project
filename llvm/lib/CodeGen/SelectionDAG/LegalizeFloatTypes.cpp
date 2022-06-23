@@ -3064,10 +3064,15 @@ SDValue DAGTypeLegalizer::SoftPromoteHalfOp_STACKMAP(SDNode *N, unsigned OpNo) {
 }
 
 SDValue DAGTypeLegalizer::SoftPromoteHalfOp_PATCHPOINT(SDNode *N, unsigned OpNo) {
-  // XXX
-  //assert(OpNo > 1); // Because the first two arguments are guaranteed legal.
+  assert(OpNo >= 7);
   SmallVector<SDValue> NewOps(N->ops().begin(), N->ops().end());
   SDValue Op = N->getOperand(OpNo);
   NewOps[OpNo] = GetSoftPromotedHalf(Op);
-  return DAG.getNode(N->getOpcode(), SDLoc(N), N->getVTList(), NewOps);
+  SDValue NewNode =
+      DAG.getNode(N->getOpcode(), SDLoc(N), N->getVTList(), NewOps);
+
+  for (unsigned ResNum = 0; ResNum < N->getNumValues(); ResNum++)
+    ReplaceValueWith(SDValue(N, ResNum), NewNode.getValue(ResNum));
+
+  return SDValue(); // Signal that we replaced the node ourselves.
 }

@@ -29,7 +29,7 @@
 ;     CHECK-NEXT:   .long {{.*}}
 ;     CHECK-NEXT:   .short {{.*}}
 ;     NumLocations
-;     CHECK-NEXT:   .short 4
+;     CHECK-NEXT:   .short 5
 ;     Location[NumLocations]
 ;       Location[0]
 ;         CHECK-NEXT: .byte   1
@@ -46,19 +46,26 @@
 ;         CHECK-NEXT: .short  0
 ;         CHECK-NEXT: .long   22
 ;       Location[2]
+;         CHECK-NEXT: .byte   1
+;         CHECK-NEXT: .byte   0
+;         CHECK-NEXT: .short  16
+;         CHECK-NEXT: .short  {{.*}}
+;         CHECK-NEXT: .short  0
+;         CHECK-NEXT: .long   0
+;       Location[3]
+;         CHECK-NEXT: .byte   1
+;         CHECK-NEXT: .byte   0
+;         CHECK-NEXT: .short  16
+;         CHECK-NEXT: .short  {{.*}}
+;         CHECK-NEXT: .short  0
+;         CHECK-NEXT: .long   0
+;       Location[4]
 ;         CHECK-NEXT: .byte   4
 ;         CHECK-NEXT: .byte   0
 ;         CHECK-NEXT: .short  8
 ;         CHECK-NEXT: .short  {{.*}}
 ;         CHECK-NEXT: .short  0
-;         CHECK-NEXT: .long   15360
-;       Location[3]
-;         CHECK-NEXT: .byte   1
-;         CHECK-NEXT: .byte   0
-;         CHECK-NEXT: .short  2
-;         CHECK-NEXT: .short  {{.*}}
-;         CHECK-NEXT: .short  0
-;         CHECK-NEXT: .long   0
+;         CHECK-NEXT: .long   66
 
 
 declare void @llvm.experimental.patchpoint.void(i64, i32, i8*, i32, ...)
@@ -75,6 +82,7 @@ entry:
     i1 %intreg,
     i7 22,
     half 1.0,
-    half %halfreg)
+    half %halfreg,
+    i128 66)
   ret i32 0
 }
