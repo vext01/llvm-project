@@ -5515,8 +5515,12 @@ SDValue DAGTypeLegalizer::ExpandIntOp_STACKMAP(SDNode *N, unsigned OpNo) {
         DAG.getTargetConstant(StackMaps::ConstantOp, DL, MVT::i64));
     NewOps.push_back(DAG.getTargetConstant(CN->getZExtValue(), DL, Ty));
   } else {
-    // FIXME: https://github.com/llvm/llvm-project/issues/26431
-    DAG.getContext()->emitError("Can't expand stackmap operand");
+    // FIXME: There are a couple of problems with expanding non-constants for
+    // stackmaps:
+    //  - https://github.com/llvm/llvm-project/issues/26431
+    //  - https://github.com/llvm/llvm-project/issues/55957
+    DAG.getContext()->emitError(
+        "expanding this stackmap operand is unimplemented");
   }
 
   // Copy remaining operands.
