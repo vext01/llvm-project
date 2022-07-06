@@ -9376,7 +9376,13 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
           FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
     } else {
       // Otherwise emit a target independent node to be legalised.
-      Ops.push_back(Builder.getValue(Call.getArgOperand(I)));
+      if (Op.getOpcode() == ISD::MERGE_VALUES) {
+        for (unsigned J = 0; J < Op.getNumOperands(); J++)
+          Ops.push_back(Op.getOperand(J));
+      } else {
+        Ops.push_back(Op);
+      }
+      Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
     }
   }
 }

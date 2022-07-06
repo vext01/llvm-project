@@ -197,34 +197,18 @@ public:
     const uint8_t *P;
   };
 
-  /// Accessor for stackmap records.
-  class RecordAccessor {
+  class LiveVarAccessor {
     friend class StackMapParser;
 
-  public:
     using location_iterator = AccessorIterator<LocationAccessor>;
-    using liveout_iterator = AccessorIterator<LiveOutAccessor>;
 
-    /// Get the patchpoint/stackmap ID for this record.
-    uint64_t getID() const {
-      return read<uint64_t>(P + PatchpointIDOffset);
-    }
-
-    /// Get the instruction offset (from the start of the containing function)
-    /// for this record.
-    uint32_t getInstructionOffset() const {
-      return read<uint32_t>(P + InstructionOffsetOffset);
-    }
-
-    /// Get the number of locations contained in this record.
-    uint16_t getNumLocations() const {
-      return read<uint16_t>(P + NumLocationsOffset);
-    }
+  public:
+    uint16_t getNumLocations() const { return read<uint8_t>(P); }
 
     /// Get the location with the given index.
     LocationAccessor getLocation(unsigned LocationIndex) const {
       unsigned LocationOffset =
-        LocationListOffset + LocationIndex * LocationSize;
+          LocationListOffset + LocationIndex * RecordAccessor::LocationSize;
       return LocationAccessor(P + LocationOffset);
     }
 
@@ -241,6 +225,69 @@ public:
     /// Iterator range for locations.
     iterator_range<location_iterator> locations() const {
       return make_range(location_begin(), location_end());
+    }
+
+    unsigned getSizeInBytes() const {
+      return NumLocationsSize +
+             getNumLocations() * RecordAccessor::LocationSize;
+    }
+
+    LiveVarAccessor next() const {
+      return LiveVarAccessor(P + getSizeInBytes());
+    }
+
+  private:
+    const uint8_t *P;
+
+    LiveVarAccessor(const uint8_t *P) : P(P) {}
+
+    static const int LocationListOffset = sizeof(uint8_t);
+    static const int NumLocationsSize = sizeof(uint8_t);
+  };
+
+  /// Accessor for stackmap records.
+  class RecordAccessor {
+    friend class StackMapParser;
+    friend class LiveVarAccessor;
+
+  public:
+    using live_var_iterator = AccessorIterator<LiveVarAccessor>;
+    using liveout_iterator = AccessorIterator<LiveOutAccessor>;
+
+    /// Get the patchpoint/stackmap ID for this record.
+    uint64_t getID() const {
+      return read<uint64_t>(P + PatchpointIDOffset);
+    }
+
+    /// Get the instruction offset (from the start of the containing function)
+    /// for this record.
+    uint32_t getInstructionOffset() const {
+      return read<uint32_t>(P + InstructionOffsetOffset);
+    }
+
+    /// Get the number of locations contained in this record.
+    uint16_t getNumLiveVars() const {
+      return read<uint16_t>(P + NumLiveVarsOffset);
+    }
+
+    /// Get the location with the given index.
+    LiveVarAccessor getLiveVar(uint8_t LiveVarIndex) const {
+      return LiveVarAccessor(P + getLiveVarOffset(LiveVarIndex));
+    }
+
+    /// Begin iterator for locations.
+    live_var_iterator live_vars_begin() const {
+      return live_var_iterator(getLiveVar(0));
+    }
+
+    /// End iterator for locations.
+    live_var_iterator live_vars_end() const {
+      return live_var_iterator(getLiveVar(getNumLiveVars()));
+    }
+
+    /// Iterator range for locations.
+    iterator_range<live_var_iterator> live_vars() const {
+      return make_range(live_vars_begin(), live_vars_end());
     }
 
     /// Get the number of liveouts contained in this record.
@@ -274,9 +321,14 @@ public:
     RecordAccessor(const uint8_t *P) : P(P) {}
 
     unsigned getNumLiveOutsOffset() const {
-      unsigned LocOffset = 
-          ((LocationListOffset + LocationSize * getNumLocations()) + 7) & ~0x7; 
-      return LocOffset + sizeof(uint16_t);
+      uint16_t NumLiveVars = getNumLiveVars();
+      unsigned EndLastLiveVar = getLiveVarOffset(NumLiveVars - 1);
+      unsigned EndLastLoc =
+          EndLastLiveVar +
+          getLiveVar(NumLiveVars - 1).getNumLocations() * LocationSize;
+      // Apply padding.
+      EndLastLiveVar = (EndLastLoc + 7) & ~0x7;
+      return EndLastLiveVar + sizeof(uint16_t);
     }
 
     unsigned getSizeInBytes() const {
@@ -289,14 +341,25 @@ public:
       return RecordAccessor(P + getSizeInBytes());
     }
 
+    unsigned getLiveVarOffset(uint8_t LiveVarIndex) const {
+      // XXX offsets could be cached/precomputed.
+      unsigned Off = LiveVarsListOffset;
+      LiveVarAccessor LA(P + Off);
+      for (uint8_t I = 0; I < LiveVarIndex; I++) {
+        Off += LA.getSizeInBytes();
+        LA = LiveVarAccessor(P + Off);
+      }
+      return Off;
+    }
+
     static const unsigned PatchpointIDOffset = 0;
     static const unsigned InstructionOffsetOffset =
       PatchpointIDOffset + sizeof(uint64_t);
-    static const unsigned NumLocationsOffset =
-      InstructionOffsetOffset + sizeof(uint32_t) + sizeof(uint16_t);
-    static const unsigned LocationListOffset =
-      NumLocationsOffset + sizeof(uint16_t);
-    static const unsigned LocationSize = sizeof(uint64_t) + sizeof(uint32_t);
+    static const unsigned NumLiveVarsOffset =
+        InstructionOffsetOffset + sizeof(uint32_t) + sizeof(uint16_t);
+    static const int LocationSize = sizeof(uint64_t) + sizeof(uint32_t);
+    static const unsigned LiveVarsListOffset =
+        NumLiveVarsOffset + sizeof(uint16_t);
     static const unsigned LiveOutSize = sizeof(uint32_t);
 
     const uint8_t *P;

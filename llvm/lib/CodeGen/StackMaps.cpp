@@ -186,8 +186,9 @@ static unsigned getDwarfRegNum(unsigned Reg, const TargetRegisterInfo *TRI) {
 
 MachineInstr::const_mop_iterator
 StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
-                        MachineInstr::const_mop_iterator MOE, LocationVec &Locs,
-                        LiveOutVec &LiveOuts) const {
+                        MachineInstr::const_mop_iterator MOE,
+                        LiveVarsVec &LiveVars, LiveOutVec &LiveOuts) const {
+  LocationVec &Locs = LiveVars.back();
   const TargetRegisterInfo *TRI = AP.MF->getSubtarget().getRegisterInfo();
   if (MOI->isImm()) {
     switch (MOI->getImm()) {
@@ -220,6 +221,10 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       int64_t Imm = MOI->getImm();
       Locs.emplace_back(Location::Constant, sizeof(int64_t), 0, Imm);
       break;
+    }
+    case StackMaps::NextLive: {
+      // The next argument will be the first location of a new live variable.
+      LiveVars.push_back(LocationVec());
     }
     }
     return ++MOI;
@@ -268,59 +273,64 @@ void StackMaps::print(raw_ostream &OS) {
       AP.MF ? AP.MF->getSubtarget().getRegisterInfo() : nullptr;
   OS << WSMP << "callsites:\n";
   for (const auto &CSI : CSInfos) {
-    const LocationVec &CSLocs = CSI.Locations;
+    const LiveVarsVec &CSLiveVars = CSI.LiveVars;
     const LiveOutVec &LiveOuts = CSI.LiveOuts;
 
     OS << WSMP << "callsite " << CSI.ID << "\n";
-    OS << WSMP << "  has " << CSLocs.size() << " locations\n";
+    OS << WSMP << "  has " << CSLiveVars.size() << " live variables\n";
 
-    unsigned Idx = 0;
-    for (const auto &Loc : CSLocs) {
-      OS << WSMP << "\t\tLoc " << Idx << ": ";
-      switch (Loc.Type) {
-      case Location::Unprocessed:
-        OS << "<Unprocessed operand>";
-        break;
-      case Location::Register:
-        OS << "Register ";
-        if (TRI)
-          OS << printReg(Loc.Reg, TRI);
-        else
-          OS << Loc.Reg;
-        break;
-      case Location::Direct:
-        OS << "Direct ";
-        if (TRI)
-          OS << printReg(Loc.Reg, TRI);
-        else
-          OS << Loc.Reg;
-        if (Loc.Offset)
-          OS << " + " << Loc.Offset;
-        break;
-      case Location::Indirect:
-        OS << "Indirect ";
-        if (TRI)
-          OS << printReg(Loc.Reg, TRI);
-        else
-          OS << Loc.Reg;
-        OS << "+" << Loc.Offset;
-        break;
-      case Location::Constant:
-        OS << "Constant " << Loc.Offset;
-        break;
-      case Location::ConstantIndex:
-        OS << "Constant Index " << Loc.Offset;
-        break;
+    unsigned LiveVarIdx = 0;
+    for (const auto &LiveVar : CSLiveVars) {
+      OS << WSMP << "\t\tLive var  " << LiveVarIdx << ": \n";
+      unsigned LocIdx = 0;
+      for (const auto &Loc : LiveVar) {
+        OS << WSMP << "\t\t\tLoc " << LocIdx << ": ";
+        switch (Loc.Type) {
+        case Location::Unprocessed:
+          OS << "<Unprocessed operand>";
+          break;
+        case Location::Register:
+          OS << "Register ";
+          if (TRI)
+            OS << printReg(Loc.Reg, TRI);
+          else
+            OS << Loc.Reg;
+          break;
+        case Location::Direct:
+          OS << "Direct ";
+          if (TRI)
+            OS << printReg(Loc.Reg, TRI);
+          else
+            OS << Loc.Reg;
+          if (Loc.Offset)
+            OS << " + " << Loc.Offset;
+          break;
+        case Location::Indirect:
+          OS << "Indirect ";
+          if (TRI)
+            OS << printReg(Loc.Reg, TRI);
+          else
+            OS << Loc.Reg;
+          OS << "+" << Loc.Offset;
+          break;
+        case Location::Constant:
+          OS << "Constant " << Loc.Offset;
+          break;
+        case Location::ConstantIndex:
+          OS << "Constant Index " << Loc.Offset;
+          break;
+        }
+        OS << "\t[encoding: .byte " << Loc.Type << ", .byte 0"
+           << ", .short " << Loc.Size << ", .short " << Loc.Reg << ", .short 0"
+           << ", .int " << Loc.Offset << "]\n";
+        LocIdx++;
       }
-      OS << "\t[encoding: .byte " << Loc.Type << ", .byte 0"
-         << ", .short " << Loc.Size << ", .short " << Loc.Reg << ", .short 0"
-         << ", .int " << Loc.Offset << "]\n";
-      Idx++;
+      LiveVarIdx++;
     }
 
     OS << WSMP << "\thas " << LiveOuts.size() << " live-out registers\n";
 
-    Idx = 0;
+    unsigned Idx = 0;
     for (const auto &LO : LiveOuts) {
       OS << WSMP << "\t\tLO " << Idx << ": ";
       if (TRI)
@@ -388,21 +398,21 @@ StackMaps::parseRegisterLiveOutMask(const uint32_t *Mask) const {
 void StackMaps::parseStatepointOpers(const MachineInstr &MI,
                                      MachineInstr::const_mop_iterator MOI,
                                      MachineInstr::const_mop_iterator MOE,
-                                     LocationVec &Locations,
+                                     LiveVarsVec &LiveVars,
                                      LiveOutVec &LiveOuts) {
   LLVM_DEBUG(dbgs() << "record statepoint : " << MI << "\n");
   StatepointOpers SO(&MI);
-  MOI = parseOperand(MOI, MOE, Locations, LiveOuts); // CC
-  MOI = parseOperand(MOI, MOE, Locations, LiveOuts); // Flags
-  MOI = parseOperand(MOI, MOE, Locations, LiveOuts); // Num Deopts
+  MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // CC
+  MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Flags
+  MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Num Deopts
 
   // Record Deopt Args.
-  unsigned NumDeoptArgs = Locations.back().Offset;
-  assert(Locations.back().Type == Location::Constant);
+  unsigned NumDeoptArgs = LiveVars.back().back().Offset;
+  assert(LiveVars.back().back().Type == Location::Constant);
   assert(NumDeoptArgs == SO.getNumDeoptArgs());
 
   while (NumDeoptArgs--)
-    MOI = parseOperand(MOI, MOE, Locations, LiveOuts);
+    MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
 
   // Record gc base/derived pairs
   assert(MOI->isImm() && MOI->getImm() == StackMaps::ConstantOp);
@@ -435,8 +445,8 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
       unsigned DerivedIdx = GCPtrIndices[P.second];
       LLVM_DEBUG(dbgs() << "Base : " << BaseIdx << " Derived : " << DerivedIdx
                         << "\n");
-      (void)parseOperand(MOB + BaseIdx, MOE, Locations, LiveOuts);
-      (void)parseOperand(MOB + DerivedIdx, MOE, Locations, LiveOuts);
+      (void)parseOperand(MOB + BaseIdx, MOE, LiveVars, LiveOuts);
+      (void)parseOperand(MOB + DerivedIdx, MOE, LiveVars, LiveOuts);
     }
 
     MOI = MOB + GCPtrIdx;
@@ -449,7 +459,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   unsigned NumAllocas = MOI->getImm();
   ++MOI;
   while (NumAllocas--) {
-    MOI = parseOperand(MOI, MOE, Locations, LiveOuts);
+    MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
     assert(MOI < MOE);
   }
 }
@@ -461,42 +471,50 @@ void StackMaps::recordStackMapOpers(const MCSymbol &MILabel,
                                     bool recordResult) {
   MCContext &OutContext = AP.OutStreamer->getContext();
 
-  LocationVec Locations;
+  LiveVarsVec LiveVars = {LocationVec()};
   LiveOutVec LiveOuts;
 
   if (recordResult) {
     assert(PatchPointOpers(&MI).hasDef() && "Stackmap has no return value.");
-    parseOperand(MI.operands_begin(), std::next(MI.operands_begin()), Locations,
+    parseOperand(MI.operands_begin(), std::next(MI.operands_begin()), LiveVars,
                  LiveOuts);
   }
 
   // Parse operands.
   if (MI.getOpcode() == TargetOpcode::STATEPOINT)
-    parseStatepointOpers(MI, MOI, MOE, Locations, LiveOuts);
+    parseStatepointOpers(MI, MOI, MOE, LiveVars, LiveOuts);
   else
     while (MOI != MOE)
-      MOI = parseOperand(MOI, MOE, Locations, LiveOuts);
+      MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
 
   // Move large constants into the constant pool.
-  for (auto &Loc : Locations) {
-    // Constants are encoded as sign-extended integers.
-    // -1 is directly encoded as .long 0xFFFFFFFF with no constant pool.
-    if (Loc.Type == Location::Constant && !isInt<32>(Loc.Offset)) {
-      Loc.Type = Location::ConstantIndex;
-      // ConstPool is intentionally a MapVector of 'uint64_t's (as
-      // opposed to 'int64_t's).  We should never be in a situation
-      // where we have to insert either the tombstone or the empty
-      // keys into a map, and for a DenseMap<uint64_t, T> these are
-      // (uint64_t)0 and (uint64_t)-1.  They can be and are
-      // represented using 32 bit integers.
-      assert((uint64_t)Loc.Offset != DenseMapInfo<uint64_t>::getEmptyKey() &&
-             (uint64_t)Loc.Offset !=
-                 DenseMapInfo<uint64_t>::getTombstoneKey() &&
-             "empty and tombstone keys should fit in 32 bits!");
-      auto Result = ConstPool.insert(std::make_pair(Loc.Offset, Loc.Offset));
-      Loc.Offset = Result.first - ConstPool.begin();
+  for (auto &Locations : LiveVars) {
+    for (auto &Loc : Locations) {
+      // Constants are encoded as sign-extended integers.
+      // -1 is directly encoded as .long 0xFFFFFFFF with no constant pool.
+      if (Loc.Type == Location::Constant && !isInt<32>(Loc.Offset)) {
+        Loc.Type = Location::ConstantIndex;
+        // ConstPool is intentionally a MapVector of 'uint64_t's (as
+        // opposed to 'int64_t's).  We should never be in a situation
+        // where we have to insert either the tombstone or the empty
+        // keys into a map, and for a DenseMap<uint64_t, T> these are
+        // (uint64_t)0 and (uint64_t)-1.  They can be and are
+        // represented using 32 bit integers.
+        assert((uint64_t)Loc.Offset != DenseMapInfo<uint64_t>::getEmptyKey() &&
+               (uint64_t)Loc.Offset !=
+                   DenseMapInfo<uint64_t>::getTombstoneKey() &&
+               "empty and tombstone keys should fit in 32 bits!");
+        auto Result = ConstPool.insert(std::make_pair(Loc.Offset, Loc.Offset));
+        Loc.Offset = Result.first - ConstPool.begin();
+      }
     }
   }
+
+  // Due to the way we parse the operands, there will always be a trailing
+  // empty LocationVec, which we can now strip.
+  // XXX use a start marker instead of an end marker to avoid this hack.
+  assert(LiveVars.back().size() == 0);
+  LiveVars.pop_back();
 
   // Create an expression to calculate the offset of the callsite from function
   // entry.
@@ -504,7 +522,7 @@ void StackMaps::recordStackMapOpers(const MCSymbol &MILabel,
       MCSymbolRefExpr::create(&MILabel, OutContext),
       MCSymbolRefExpr::create(AP.CurrentFnSymForSize, OutContext), OutContext);
 
-  CSInfos.emplace_back(CSOffsetExpr, ID, std::move(Locations),
+  CSInfos.emplace_back(CSOffsetExpr, ID, std::move(LiveVars),
                        std::move(LiveOuts));
 
   // Record the stack size of the current function and update callsite count.
@@ -540,15 +558,18 @@ void StackMaps::recordPatchPoint(const MCSymbol &L, const MachineInstr &MI) {
   recordStackMapOpers(L, MI, ID, MOI, MI.operands_end(),
                       opers.isAnyReg() && opers.hasDef());
 
+#if 0
+  XXX fix
 #ifndef NDEBUG
   // verify anyregcc
-  auto &Locations = CSInfos.back().Locations;
+  auto &Locations = CSInfos.back().LiveVars;
   if (opers.isAnyReg()) {
     unsigned NArgs = opers.getNumCallArgs();
     for (unsigned i = 0, e = (opers.hasDef() ? NArgs + 1 : NArgs); i != e; ++i)
       assert(Locations[i].Type == Location::Register &&
              "anyreg arg must be in reg.");
   }
+#endif
 #endif
 }
 
@@ -626,12 +647,15 @@ void StackMaps::emitConstantPoolEntries(MCStreamer &OS) {
 ///   uint64 : PatchPoint ID
 ///   uint32 : Instruction Offset
 ///   uint16 : Reserved (record flags)
-///   uint16 : NumLocations
-///   Location[NumLocations] {
-///     uint8  : Register | Direct | Indirect | Constant | ConstantIndex
-///     uint8  : Size in Bytes
-///     uint16 : Dwarf RegNum
-///     int32  : Offset
+///   uint16 : NumLiveVars
+///   Live[NumLiveVars] {
+///     uint8  : NumLocations
+///     Locations[NumLocations] {
+///       uint8  : Register | Direct | Indirect | Constant | ConstantIndex
+///       uint8  : Size in Bytes
+///       uint16 : Dwarf RegNum
+///       int32  : Offset
+///     }
 ///   }
 ///   uint16 : Padding
 ///   uint16 : NumLiveOuts
@@ -653,18 +677,18 @@ void StackMaps::emitCallsiteEntries(MCStreamer &OS) {
   LLVM_DEBUG(print(dbgs()));
   // Callsite entries.
   for (const auto &CSI : CSInfos) {
-    const LocationVec &CSLocs = CSI.Locations;
+    const LiveVarsVec &CSLiveVars = CSI.LiveVars;
     const LiveOutVec &LiveOuts = CSI.LiveOuts;
 
     // Verify stack map entry. It's better to communicate a problem to the
     // runtime than crash in case of in-process compilation. Currently, we do
     // simple overflow checks, but we may eventually communicate other
     // compilation errors this way.
-    if (CSLocs.size() > UINT16_MAX || LiveOuts.size() > UINT16_MAX) {
+    if (CSLiveVars.size() > UINT16_MAX || LiveOuts.size() > UINT16_MAX) {
       OS.emitIntValue(UINT64_MAX, 8); // Invalid ID.
       OS.emitValue(CSI.CSOffsetExpr, 4);
       OS.emitInt16(0); // Reserved.
-      OS.emitInt16(0); // 0 locations.
+      OS.emitInt16(0); // 0 live variables.
       OS.emitInt16(0); // padding.
       OS.emitInt16(0); // 0 live-out registers.
       OS.emitInt32(0); // padding.
@@ -676,15 +700,18 @@ void StackMaps::emitCallsiteEntries(MCStreamer &OS) {
 
     // Reserved for flags.
     OS.emitInt16(0);
-    OS.emitInt16(CSLocs.size());
+    OS.emitInt16(CSLiveVars.size()); // Num lives.
 
-    for (const auto &Loc : CSLocs) {
-      OS.emitIntValue(Loc.Type, 1);
-      OS.emitIntValue(0, 1);  // Reserved
-      OS.emitInt16(Loc.Size);
-      OS.emitInt16(Loc.Reg);
-      OS.emitInt16(0); // Reserved
-      OS.emitInt32(Loc.Offset);
+    for (const auto &LiveVar : CSLiveVars) {
+      OS.emitIntValue(LiveVar.size(), 1); // Num locations.
+      for (const auto &Loc : LiveVar) {
+        OS.emitIntValue(Loc.Type, 1);
+        OS.emitIntValue(0, 1); // Reserved
+        OS.emitInt16(Loc.Size);
+        OS.emitInt16(Loc.Reg);
+        OS.emitInt16(0); // Reserved
+        OS.emitInt32(Loc.Offset);
+      }
     }
 
     // Emit alignment to 8 byte.

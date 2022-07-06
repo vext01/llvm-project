@@ -283,7 +283,12 @@ public:
   // OpTypes are used to encode information about the following logical
   // operand (which may consist of several MachineOperands) for the
   // OpParser.
-  using OpType = enum { DirectMemRefOp, IndirectMemRefOp, ConstantOp };
+  using OpType = enum {
+    DirectMemRefOp,
+    IndirectMemRefOp,
+    ConstantOp,
+    NextLive
+  };
 
   StackMaps(AsmPrinter &AP);
 
@@ -298,6 +303,7 @@ public:
   }
 
   using LocationVec = SmallVector<Location, 8>;
+  using LiveVarsVec = SmallVector<LocationVec, 8>;
   using LiveOutVec = SmallVector<LiveOutReg, 8>;
   using ConstantPool = MapVector<uint64_t, uint64_t>;
 
@@ -312,13 +318,13 @@ public:
   struct CallsiteInfo {
     const MCExpr *CSOffsetExpr = nullptr;
     uint64_t ID = 0;
-    LocationVec Locations;
+    LiveVarsVec LiveVars;
     LiveOutVec LiveOuts;
 
     CallsiteInfo() = default;
     CallsiteInfo(const MCExpr *CSOffsetExpr, uint64_t ID,
-                 LocationVec &&Locations, LiveOutVec &&LiveOuts)
-        : CSOffsetExpr(CSOffsetExpr), ID(ID), Locations(std::move(Locations)),
+                 LiveVarsVec &&LiveVars, LiveOutVec &&LiveOuts)
+        : CSOffsetExpr(CSOffsetExpr), ID(ID), LiveVars(std::move(LiveVars)),
           LiveOuts(std::move(LiveOuts)) {}
   };
 
@@ -360,7 +366,7 @@ private:
 
   MachineInstr::const_mop_iterator
   parseOperand(MachineInstr::const_mop_iterator MOI,
-               MachineInstr::const_mop_iterator MOE, LocationVec &Locs,
+               MachineInstr::const_mop_iterator MOE, LiveVarsVec &LiveVars,
                LiveOutVec &LiveOuts) const;
 
   /// Specialized parser of statepoint operands.
@@ -368,7 +374,7 @@ private:
   void parseStatepointOpers(const MachineInstr &MI,
                             MachineInstr::const_mop_iterator MOI,
                             MachineInstr::const_mop_iterator MOE,
-                            LocationVec &Locations, LiveOutVec &LiveOuts);
+                            LiveVarsVec &LiveVars, LiveOutVec &LiveOuts);
 
   /// Create a live-out register record for the given register @p Reg.
   LiveOutReg createLiveOutReg(unsigned Reg,
