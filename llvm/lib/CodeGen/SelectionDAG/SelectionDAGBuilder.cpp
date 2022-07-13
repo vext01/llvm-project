@@ -9382,8 +9382,8 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
       } else {
         Ops.push_back(Op);
       }
-      Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
     }
+    Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
   }
 }
 
