@@ -195,6 +195,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
     default:
       llvm_unreachable("Unrecognized operand type.");
     case StackMaps::DirectMemRefOp: {
+      //errs() << "direct\n";
       auto &DL = AP.MF->getDataLayout();
 
       unsigned Size = DL.getPointerSizeInBits();
@@ -207,6 +208,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::IndirectMemRefOp: {
+      //errs() << "indirect\n";
       int64_t Size = (++MOI)->getImm();
       assert(Size > 0 && "Need a valid size for indirect memory locations.");
       Register Reg = (++MOI)->getReg();
@@ -216,6 +218,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::ConstantOp: {
+      // errs() << "const\n";
       ++MOI;
       assert(MOI->isImm() && "Expected constant operand.");
       int64_t Imm = MOI->getImm();
@@ -223,6 +226,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::NextLive: {
+      // errs() << "nextlive\n";
       // The next argument will be the first location of a new live variable.
       LiveVars.push_back(LocationVec());
     }
@@ -235,6 +239,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
   // register content. (The runtime can track the actual size of the data type
   // if it needs to.)
   if (MOI->isReg()) {
+    // errs() << "reg\n";
     // Skip implicit registers (this includes our scratch registers)
     if (MOI->isImplicit())
       return ++MOI;
@@ -402,6 +407,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
                                      LiveOutVec &LiveOuts) {
   LLVM_DEBUG(dbgs() << "record statepoint : " << MI << "\n");
   StatepointOpers SO(&MI);
+
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // CC
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Flags
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Num Deopts
@@ -451,6 +457,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
       LLVM_DEBUG(dbgs() << "Base : " << BaseIdx << " Derived : " << DerivedIdx
                         << "\n");
       (void)parseOperand(MOB + BaseIdx, MOE, LiveVars, LiveOuts);
+      LiveVars.push_back(LocationVec()); // Next ptr should be a new location.
       (void)parseOperand(MOB + DerivedIdx, MOE, LiveVars, LiveOuts);
       LiveVars.push_back(LocationVec()); // Next ptr should be a new location.
     }
@@ -466,6 +473,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   ++MOI;
   while (NumAllocas--) {
     MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
+    LiveVars.push_back(LocationVec()); // Next ptr should be a new location.
     assert(MOI < MOE);
   }
 }
@@ -493,6 +501,14 @@ void StackMaps::recordStackMapOpers(const MCSymbol &MILabel,
     while (MOI != MOE)
       MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
 
+  //for (auto &LL: LiveVars) {
+  //    errs() << ":::\n";
+  //    for (auto &V: LL) {
+  //        errs() << "  " << V.Type << ", ";
+  //    }
+  //    errs() << "\n";
+  //}
+
   // Move large constants into the constant pool.
   for (auto &Locations : LiveVars) {
     for (auto &Loc : Locations) {
@@ -517,10 +533,15 @@ void StackMaps::recordStackMapOpers(const MCSymbol &MILabel,
   }
 
   // Due to the way we parse the operands, there will always be a trailing
-  // empty LocationVec, which we can now strip.
-  // XXX use a start marker instead of an end marker to avoid this hack.
-  assert(LiveVars.back().size() == 0);
-  LiveVars.pop_back();
+  // empty LocationVec, which we can now strip. This also serves as a useful
+  // sanity check.
+  if (LiveVars.back().size() != 0) {
+      // The user can see this if something else went wrong in the backend,
+      // thus leaving the stackmap data in an inconsistent state.
+      MI.emitError("expected empty LocationVec");
+  } else {
+      LiveVars.pop_back();
+  }
 
   // Create an expression to calculate the offset of the callsite from function
   // entry.

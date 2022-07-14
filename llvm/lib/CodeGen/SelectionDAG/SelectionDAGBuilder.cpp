@@ -9361,20 +9361,24 @@ void SelectionDAGBuilder::populateCallLoweringInfo(
 /// assumption made by the llvm.gcroot intrinsic). If the alloca's location were
 /// only available in a register, then the runtime would need to trap when
 /// execution reaches the StackMap in order to read the alloca's location.
-static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
+static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigned EndIdx,
                                 const SDLoc &DL, SmallVectorImpl<SDValue> &Ops,
                                 SelectionDAGBuilder &Builder) {
   SelectionDAG &DAG = Builder.DAG;
-  for (unsigned I = StartIdx; I < Call.arg_size(); I++) {
+  //for (unsigned I = StartIdx; I < Call.arg_size(); I++) {
+  for (unsigned I = StartIdx; I < EndIdx; I++) {
     SDValue Op = Builder.getValue(Call.getArgOperand(I));
+    //Op.dump();
 
     // Things on the stack are pointer-typed, meaning that they are already
     // legal and can be emitted directly to target nodes.
     if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
+        //errs() << "  frameindex\n";
       const TargetLowering &TLI = DAG.getTargetLoweringInfo();
       Ops.push_back(DAG.getTargetFrameIndex(
           FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
     } else {
+        //errs() << "  not frameindex\n";
       // Otherwise emit a target independent node to be legalised.
       if (Op.getOpcode() == ISD::MERGE_VALUES) {
         for (unsigned J = 0; J < Op.getNumOperands(); J++)
@@ -9383,6 +9387,7 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
         Ops.push_back(Op);
       }
     }
+    //errs() << "add nextlive\n";
     Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
   }
 }
@@ -9435,7 +9440,7 @@ void SelectionDAGBuilder::visitStackmap(const CallInst &CI) {
   Ops.push_back(ShadConst);
 
   // Add the live variables.
-  addStackMapLiveVars(CI, 2, DL, Ops, *this);
+  addStackMapLiveVars(CI, 2, CI.arg_size(), DL, Ops, *this);
 
   // Create the STACKMAP node.
   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
@@ -9549,16 +9554,26 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
 
   // Add the arguments we omitted previously. The register allocator should
   // place these in any free register.
-  if (IsAnyRegCC)
-    for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i)
-      Ops.push_back(getValue(CB.getArgOperand(i)));
+  //errs() << "hello\n";
+  //if (IsAnyRegCC)
+  //  for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i) {
+  //    Ops.push_back(getValue(CB.getArgOperand(i)));
+  //    errs() << "  *\n";
+  //  }
+
+  addStackMapLiveVars(CB, NumMetaOpers, NumMetaOpers + NumArgs, dl, Ops, *this);
 
   // Push the arguments from the call instruction.
   SDNode::op_iterator e = HasGlue ? Call->op_end()-2 : Call->op_end()-1;
   Ops.append(Call->op_begin() + 2, e);
+  //errs() << "EXTRA: \n";
+  //for (auto *X = Call->op_begin() + 2; X != e; X++) {
+  //    Ops.push_back(*X);
+  //    errs() << "  *\n";
+  //}
 
   // Push live variables for the stack map.
-  addStackMapLiveVars(CB, NumMetaOpers + NumArgs, dl, Ops, *this);
+  addStackMapLiveVars(CB, NumMetaOpers + NumArgs, CB.arg_size(), dl, Ops, *this);
 
   SDVTList NodeTys;
   if (IsAnyRegCC && HasDef) {
