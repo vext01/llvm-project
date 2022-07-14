@@ -436,6 +436,11 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
     (void)NumGCPairs;
     LLVM_DEBUG(dbgs() << "NumGCPairs = " << NumGCPairs << "\n");
 
+    // XXX: For some reason a statepoint always has 3 constant 0 records in the
+    // stackmap. I don't know why this happens, but let's not mix those in with
+    // the GC pointers.
+    LiveVars.push_back(LocationVec());
+
     auto MOB = MI.operands_begin();
     for (auto &P : GCPairs) {
       assert(P.first < GCPtrIndices.size() && "base pointer index not found");
@@ -447,6 +452,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
                         << "\n");
       (void)parseOperand(MOB + BaseIdx, MOE, LiveVars, LiveOuts);
       (void)parseOperand(MOB + DerivedIdx, MOE, LiveVars, LiveOuts);
+      LiveVars.push_back(LocationVec()); // Next ptr should be a new location.
     }
 
     MOI = MOB + GCPtrIdx;
