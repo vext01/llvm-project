@@ -492,6 +492,7 @@ void StackMaps::recordStackMapOpers(const MCSymbol &MILabel,
     assert(PatchPointOpers(&MI).hasDef() && "Stackmap has no return value.");
     parseOperand(MI.operands_begin(), std::next(MI.operands_begin()), LiveVars,
                  LiveOuts);
+    LiveVars.push_back(LocationVec());
   }
 
   // Parse operands.

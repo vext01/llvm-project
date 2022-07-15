@@ -2275,10 +2275,18 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   // Calling convention.
   Ops.push_back(*It++);
 
-  // Push the args for the call.
-  // XXX is it to do with this?
-  for (uint64_t I = cast<ConstantSDNode>(NumArgs)->getZExtValue(); I != 0; I--)
+  // Push the args for the call by scanning for `NextLive` markers.
+  // XXX tidy up
+  errs() << "args\n";
+  uint64_t ExpectArgs = cast<ConstantSDNode>(NumArgs)->getZExtValue();
+  while (ExpectArgs) {
+    It->get().dump();
+    if ((It->getNode()->getOpcode() == ISD::TargetConstant) && (cast<ConstantSDNode>(It->getNode())->getZExtValue() == StackMaps::NextLive)) {
+        ExpectArgs--;
+    }
     Ops.push_back(*It++);
+  }
+  errs() << "/args\n";
 
   // Now push the live variables.
   for (; It != N->op_end(); It++)

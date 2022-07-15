@@ -9363,7 +9363,7 @@ void SelectionDAGBuilder::populateCallLoweringInfo(
 /// execution reaches the StackMap in order to read the alloca's location.
 static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigned EndIdx,
                                 const SDLoc &DL, SmallVectorImpl<SDValue> &Ops,
-                                SelectionDAGBuilder &Builder) {
+                                SelectionDAGBuilder &Builder, bool ForceReg=false) {
   SelectionDAG &DAG = Builder.DAG;
   //for (unsigned I = StartIdx; I < Call.arg_size(); I++) {
   for (unsigned I = StartIdx; I < EndIdx; I++) {
@@ -9372,7 +9372,8 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigne
 
     // Things on the stack are pointer-typed, meaning that they are already
     // legal and can be emitted directly to target nodes.
-    if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
+    FrameIndexSDNode *FI;
+    if (!ForceReg && (FI = dyn_cast<FrameIndexSDNode>(Op))) {
         //errs() << "  frameindex\n";
       const TargetLowering &TLI = DAG.getTargetLoweringInfo();
       Ops.push_back(DAG.getTargetFrameIndex(
@@ -9554,17 +9555,8 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
 
   // Add the arguments we omitted previously. The register allocator should
   // place these in any free register.
-  //errs() << "hello\n";
-  //if (IsAnyRegCC)
-  //  for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i) {
-  //    Ops.push_back(getValue(CB.getArgOperand(i)));
-  //    errs() << "  *\n";
-  //  }
-
-  // XXX EDD:
-  // Something about this (or in stackmaps.cc) is causing anyregcc args to be
-  // codegenned to constants. Find it, kill it.
-  addStackMapLiveVars(CB, NumMetaOpers, NumMetaOpers + NumArgs, dl, Ops, *this);
+  if (IsAnyRegCC)
+    addStackMapLiveVars(CB, NumMetaOpers, NumMetaOpers + NumArgs, dl, Ops, *this, true);
 
   // Push the arguments from the call instruction.
   SDNode::op_iterator e = HasGlue ? Call->op_end()-2 : Call->op_end()-1;
