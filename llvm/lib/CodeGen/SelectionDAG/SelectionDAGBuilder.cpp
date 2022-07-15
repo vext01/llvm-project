@@ -9561,6 +9561,9 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   //    errs() << "  *\n";
   //  }
 
+  // XXX EDD:
+  // Something about this (or in stackmaps.cc) is causing anyregcc args to be
+  // codegenned to constants. Find it, kill it.
   addStackMapLiveVars(CB, NumMetaOpers, NumMetaOpers + NumArgs, dl, Ops, *this);
 
   // Push the arguments from the call instruction.

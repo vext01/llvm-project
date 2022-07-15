@@ -2276,6 +2276,7 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   Ops.push_back(*It++);
 
   // Push the args for the call.
+  // XXX is it to do with this?
   for (uint64_t I = cast<ConstantSDNode>(NumArgs)->getZExtValue(); I != 0; I--)
     Ops.push_back(*It++);
 
