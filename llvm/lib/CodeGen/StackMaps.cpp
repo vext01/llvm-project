@@ -190,12 +190,13 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
                         LiveVarsVec &LiveVars, LiveOutVec &LiveOuts) const {
   LocationVec &Locs = LiveVars.back();
   const TargetRegisterInfo *TRI = AP.MF->getSubtarget().getRegisterInfo();
+  errs() << "MOI: "; MOI->dump();
   if (MOI->isImm()) {
     switch (MOI->getImm()) {
     default:
       llvm_unreachable("Unrecognized operand type.");
     case StackMaps::DirectMemRefOp: {
-      //errs() << "direct\n";
+      errs() << "direct\n";
       auto &DL = AP.MF->getDataLayout();
 
       unsigned Size = DL.getPointerSizeInBits();
@@ -208,7 +209,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::IndirectMemRefOp: {
-      //errs() << "indirect\n";
+      errs() << "indirect\n";
       int64_t Size = (++MOI)->getImm();
       assert(Size > 0 && "Need a valid size for indirect memory locations.");
       Register Reg = (++MOI)->getReg();
@@ -218,7 +219,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::ConstantOp: {
-      // errs() << "const\n";
+      errs() << "const\n";
       ++MOI;
       assert(MOI->isImm() && "Expected constant operand.");
       int64_t Imm = MOI->getImm();
@@ -226,7 +227,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::NextLive: {
-      // errs() << "nextlive\n";
+      errs() << "nextlive\n";
       // The next argument will be the first location of a new live variable.
       LiveVars.push_back(LocationVec());
     }
@@ -239,7 +240,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
   // register content. (The runtime can track the actual size of the data type
   // if it needs to.)
   if (MOI->isReg()) {
-    // errs() << "reg\n";
+    errs() << "reg\n";
     // Skip implicit registers (this includes our scratch registers)
     if (MOI->isImplicit())
       return ++MOI;
@@ -267,6 +268,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
     return ++MOI;
   }
 
+  errs() << "other\n";
   if (MOI->isRegLiveOut())
     LiveOuts = parseRegisterLiveOutMask(MOI->getRegLiveOut());
 
