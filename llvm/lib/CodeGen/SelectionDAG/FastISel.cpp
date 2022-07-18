@@ -643,6 +643,7 @@ bool FastISel::addStackMapLiveVars(SmallVectorImpl<MachineOperand> &Ops,
         return false;
       Ops.push_back(MachineOperand::CreateReg(Reg, /*isDef=*/false));
     }
+    Ops.push_back(MachineOperand::CreateImm(StackMaps::NextLive));
   }
   return true;
 }
