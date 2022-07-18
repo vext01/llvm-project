@@ -125,7 +125,21 @@ public:
   /// Get the operand index of the variable list of non-argument operands.
   /// These hold the "live state".
   unsigned getVarIdx() const {
-    return getMetaIdx() + MetaEnd + getNumCallArgs();
+    if (!isAnyReg())
+        return getMetaIdx() + MetaEnd + getNumCallArgs();
+
+    // For anyregcc, the args go into the stackmap section and thus each
+    // arguments isn't necessarily of fixed sized. We will have to scan until
+    // we have seen enough NextLive markers.
+    unsigned Idx = getMetaIdx() + MetaEnd;
+    unsigned Remain = getNumCallArgs();
+    while (Remain) {
+      MachineOperand MO = MI->getOperand(Idx);
+      if ((MO.isImm()) && (MO.getImm() == 3)) // XXX
+          Remain--;
+      Idx++;
+    }
+    return Idx;
   }
 
   /// Get the index at which stack map locations will be recorded.

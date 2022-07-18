@@ -1203,6 +1203,7 @@ TargetLoweringBase::emitPatchPoint(MachineInstr &InitialMI,
 
     // Add frame index operands recognized by stackmaps.cpp
     if (MFI.isStatepointSpillSlotObjectIndex(FI)) {
+      errs() << "JJJJJJJJJJJJJJJJJJJJJJJJJ\n";
       // indirect-mem-ref tag, size, #FI, offset.
       // Used for spills inserted by StatepointLowering.  This codepath is not
       // used for patchpoints/stackmaps at all, for these spilling is done via

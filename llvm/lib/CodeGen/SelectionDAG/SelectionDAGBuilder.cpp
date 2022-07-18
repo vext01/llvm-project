@@ -9379,11 +9379,10 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigne
     // Things on the stack are pointer-typed, meaning that they are already
     // legal and can be emitted directly to target nodes.
     if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
-        errs() << "  frameindex\n";
-      const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-      Ops.push_back(DAG.getTargetFrameIndex(
-          FI->getIndex(), TLI.getFrameIndexTy(DAG.getDataLayout())));
+        errs() << "frame\n";
+      Ops.push_back(DAG.getTargetFrameIndex(FI->getIndex(), Op.getValueType()));
     } else {
+        errs() << "not frame\n";
       // Otherwise emit a target independent node to be legalised.
       if (Op.getOpcode() == ISD::MERGE_VALUES) {
         errs() << "  not frameindex merged\n";
@@ -9590,9 +9589,9 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   }
 
   // Push live variables for the stack map.
-  errs() << " --- ---: arg_size(): " << CB.arg_size() << ", NumMetaOpers:" << NumMetaOpers << ", NumArgs: " << NumArgs << "\n";
+  errs() << "XXX\n";
   addStackMapLiveVars(CB, NumMetaOpers + NumArgs, CB.arg_size(), dl, Ops, *this);
-  errs() << " --- ---///\n";
+  errs() << "/XXX\n";
 
   SDVTList NodeTys;
   if (IsAnyRegCC && HasDef) {

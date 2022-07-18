@@ -2291,13 +2291,12 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   errs() << "/args\n";
 
   // Now push the live variables.
-  // These should be spilled XXX.
-  errs() << "lv\n";
+  errs() << "YYY\n";
   for (; It != N->op_end(); It++) {
-      It->get().dump();
+    It->get().dump();
     pushStackMapLiveVariable(Ops, *It, DL);
   }
-  errs() << "/lv\n";
+  errs() << "/YYY\n";
 
   // Finally, the regmask, chain and (if present) glue are moved to the end.
   Ops.push_back(RegMask);
