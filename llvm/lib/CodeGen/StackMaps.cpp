@@ -414,13 +414,21 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Flags
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Num Deopts
 
+  errs() << "Num Deopts: "; MOI->dump();
+
   // Record Deopt Args.
   unsigned NumDeoptArgs = LiveVars.back().back().Offset;
+  errs() << "NumDeoptArgs: " << LiveVars.back().back().Offset << "\n";
   assert(LiveVars.back().back().Type == Location::Constant);
   assert(NumDeoptArgs == SO.getNumDeoptArgs());
 
-  while (NumDeoptArgs--)
+  while (NumDeoptArgs) {
+    errs() << "XXX: "; MOI->dump();
+    if (MOI->isImm() && (MOI->getImm() == StackMaps::NextLive)) {
+        NumDeoptArgs--;
+    }
     MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
+  }
 
   // Record gc base/derived pairs
   assert(MOI->isImm() && MOI->getImm() == StackMaps::ConstantOp);
