@@ -75,7 +75,6 @@ PatchPointOpers::PatchPointOpers(const MachineInstr *MI)
 }
 
 unsigned PatchPointOpers::getNextScratchIdx(unsigned StartIdx) const {
-  errs() << "StartIdx: " << StartIdx << ", NumOpers: " << MI->getNumOperands() << "\n";
   if (!StartIdx)
     StartIdx = getVarIdx();
 
@@ -122,9 +121,9 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   unsigned NumDeoptArgs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
   MI->dump();
-  errs() << "YYY: " << NumDeoptArgs << "\n";
+  //errs() << "YYY: " << NumDeoptArgs << "\n";
   while (NumDeoptArgs) {
-    errs() << "XXX: " << CurIdx << "\n";
+    //errs() << "XXX: " << CurIdx << "\n";
     MachineOperand MO = MI->getOperand(CurIdx);
     if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) // XXX factor this check out
         NumDeoptArgs--;
@@ -624,8 +623,6 @@ void StackMaps::recordPatchPoint(const MCSymbol &L, const MachineInstr &MI) {
 
   PatchPointOpers opers(&MI);
   const int64_t ID = opers.getID();
-  errs() << "patchpoint ID: " << ID << "\n";
-  MI.dump();
   auto MOI = std::next(MI.operands_begin(), opers.getStackMapStartIdx());
   recordStackMapOpers(L, MI, ID, MOI, MI.operands_end(),
                       opers.isAnyReg() && opers.hasDef());
