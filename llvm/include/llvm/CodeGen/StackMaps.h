@@ -135,9 +135,9 @@ public:
     unsigned Remain = getNumCallArgs();
     while (Remain) {
       MachineOperand MO = MI->getOperand(Idx);
-      if ((MO.isImm()) && (MO.getImm() == 3)) // XXX
+      if ((MO.isImm()) && (MO.getImm() == 3)) // XXX NextLive
           Remain--;
-      Idx++;
+      Idx++; // XXX getNextMetaArgIdx.
     }
     return Idx;
   }

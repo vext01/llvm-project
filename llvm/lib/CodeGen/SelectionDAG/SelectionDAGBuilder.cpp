@@ -9566,6 +9566,7 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   //unsigned NextLiveSkew = 0;
   //errs() <<  "HHH HHH HHH\n";
   if (IsAnyRegCC) {
+      errs() << "anyregcc\n";
       for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i) {
           Ops.push_back(getValue(CB.getArgOperand(i)));
           //Ops.back().dump();

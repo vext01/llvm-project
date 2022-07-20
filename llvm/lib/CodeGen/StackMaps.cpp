@@ -75,6 +75,7 @@ PatchPointOpers::PatchPointOpers(const MachineInstr *MI)
 }
 
 unsigned PatchPointOpers::getNextScratchIdx(unsigned StartIdx) const {
+  errs() << "StartIdx: " << StartIdx << ", NumOpers: " << MI->getNumOperands() << "\n";
   if (!StartIdx)
     StartIdx = getVarIdx();
 
@@ -120,7 +121,10 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   unsigned CurIdx = getNumDeoptArgsIdx();
   unsigned NumDeoptArgs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
+  MI->dump();
+  errs() << "YYY: " << NumDeoptArgs << "\n";
   while (NumDeoptArgs) {
+    errs() << "XXX: " << CurIdx << "\n";
     MachineOperand MO = MI->getOperand(CurIdx);
     if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) // XXX factor this check out
         NumDeoptArgs--;
@@ -131,7 +135,7 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
 
 int StatepointOpers::getFirstGCPtrIdx() {
   unsigned NumGCPtrsIdx = getNumGCPtrIdx();
-  MI->dump();
+  //MI->dump();
   unsigned NumGCPtrs = getConstMetaVal(*MI, NumGCPtrsIdx - 1);
   if (NumGCPtrs == 0)
     return -1;
@@ -147,7 +151,14 @@ unsigned StatepointOpers::getGCPointerMap(
   CurIdx++;
   for (unsigned N = 0; N < GCMapSize; ++N) {
     unsigned B = MI->getOperand(CurIdx++).getImm();
+    //errs() << "B: " << B << "\n";
     unsigned D = MI->getOperand(CurIdx++).getImm();
+    //errs() << "D: " << D << "\n";
+
+    // Expect a NextLive Marker now.
+    unsigned NL = MI->getOperand(CurIdx++).getImm();
+    assert(NL == 3);
+
     GCMap.push_back(std::make_pair(B, D));
   }
 
@@ -162,6 +173,7 @@ StackMaps::StackMaps(AsmPrinter &AP) : AP(AP) {
 unsigned StackMaps::getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx) {
   assert(CurIdx < MI->getNumOperands() && "Bad meta arg index");
   const auto &MO = MI->getOperand(CurIdx);
+  MO.dump();
   if (MO.isImm()) {
     switch (MO.getImm()) {
     default:
@@ -437,7 +449,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   ++MOI;
   assert(MOI->isImm());
   unsigned NumGCPointers = MOI->getImm();
-  errs() << "NumGCPointers: " << NumGCPointers << "\n";
+  //errs() << "NumGCPointers: " << NumGCPointers << "\n";
   ++MOI;
   if (NumGCPointers) {
     // Map logical index of GC ptr to MI operand index.
@@ -446,33 +458,36 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
     assert((int)GCPtrIdx != -1);
     assert(MOI - MI.operands_begin() == GCPtrIdx + 0LL);
 
-    errs() << "---\n";
-    unsigned NextGCPtrIdx = GCPtrIdx;
+    //errs() << "---\n";
+    bool StartingNewLive = true;
     while (NumGCPointers) {
-      errs() << "GCPtrIndex: " << GCPtrIdx << "\n";
+      if (StartingNewLive) {
+          GCPtrIndices.push_back(GCPtrIdx);
+          StartingNewLive = false;
+      }
+      //errs() << "GCPtrIndex: " << GCPtrIdx << "\n";
       MachineOperand MO = MI.getOperand(GCPtrIdx);
-      MO.dump();
+      //MO.dump();
       if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) {
           NumGCPointers--;
-          GCPtrIndices.push_back(NextGCPtrIdx);
-          NextGCPtrIdx = GCPtrIdx + 1; // If there is another.
+          StartingNewLive = true;
       }
-      errs() << "MMM: "<< GCPtrIdx << "\n";
+      //errs() << "MMM: "<< GCPtrIdx << "\n";
       GCPtrIdx = StackMaps::getNextMetaArgIdx(&MI, GCPtrIdx);
-      errs() << "MMM2: "<< GCPtrIdx << "\n";
+      //errs() << "MMM2: "<< GCPtrIdx << "\n";
     }
-    errs() << "MMM: "<< GCPtrIdx << "\n";
+    //errs() << "MMM: "<< GCPtrIdx << "\n";
 
-    errs() << "here now\n";
+    //errs() << "here now\n";
     SmallVector<std::pair<unsigned, unsigned>, 8> GCPairs;
     unsigned NumGCPairs = SO.getGCPointerMap(GCPairs);
     (void)NumGCPairs;
     LLVM_DEBUG(dbgs() << "NumGCPairs = " << NumGCPairs << "\n");
-    errs() << "here now\n";
+    //errs() << "here now\n";
 
     auto MOB = MI.operands_begin();
     for (auto &P : GCPairs) {
-      errs() << "P.first: " << P.first << ", size: " << GCPtrIndices.size() << "\n";
+      //errs() << "P.first: " << P.first << ", size: " << GCPtrIndices.size() << "\n";
       assert(P.first < GCPtrIndices.size() && "base pointer index not found");
       assert(P.second < GCPtrIndices.size() &&
              "derived pointer index not found");
@@ -488,7 +503,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
 
     MOI = MOB + GCPtrIdx;
   }
-  errs() << "GC pointers done\n";
+  //errs() << "GC pointers done\n";
 
   // Record gc allocas
   assert(MOI < MOE);
@@ -609,6 +624,8 @@ void StackMaps::recordPatchPoint(const MCSymbol &L, const MachineInstr &MI) {
 
   PatchPointOpers opers(&MI);
   const int64_t ID = opers.getID();
+  errs() << "patchpoint ID: " << ID << "\n";
+  MI.dump();
   auto MOI = std::next(MI.operands_begin(), opers.getStackMapStartIdx());
   recordStackMapOpers(L, MI, ID, MOI, MI.operands_end(),
                       opers.isAnyReg() && opers.hasDef());
