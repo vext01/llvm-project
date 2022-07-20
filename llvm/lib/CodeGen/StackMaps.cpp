@@ -106,8 +106,12 @@ unsigned StatepointOpers::getNumAllocaIdx() {
   unsigned CurIdx = getNumGCPtrIdx();
   unsigned NumGCPtrs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  while (NumGCPtrs--)
+  while (NumGCPtrs) {
+    MachineOperand MO = MI->getOperand(CurIdx);
+    if (MO.isImm() && (MO.getImm() == StackMaps::NextLive))
+        NumGCPtrs--;
     CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
+  }
   return CurIdx + 1; // skip <StackMaps::ConstantOp>
 }
 
@@ -116,7 +120,10 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   unsigned CurIdx = getNumDeoptArgsIdx();
   unsigned NumDeoptArgs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  while (NumDeoptArgs--) {
+  while (NumDeoptArgs) {
+    MachineOperand MO = MI->getOperand(CurIdx);
+    if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) // XXX factor this check out
+        NumDeoptArgs--;
     CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
   }
   return CurIdx + 1; // skip <StackMaps::ConstantOp>
@@ -124,6 +131,7 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
 
 int StatepointOpers::getFirstGCPtrIdx() {
   unsigned NumGCPtrsIdx = getNumGCPtrIdx();
+  MI->dump();
   unsigned NumGCPtrs = getConstMetaVal(*MI, NumGCPtrsIdx - 1);
   if (NumGCPtrs == 0)
     return -1;
@@ -167,6 +175,8 @@ unsigned StackMaps::getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx) {
     case StackMaps::ConstantOp:
       ++CurIdx;
       break;
+    case StackMaps::NextLive:
+      break;
     }
   }
   ++CurIdx;
@@ -190,13 +200,11 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
                         LiveVarsVec &LiveVars, LiveOutVec &LiveOuts) const {
   LocationVec &Locs = LiveVars.back();
   const TargetRegisterInfo *TRI = AP.MF->getSubtarget().getRegisterInfo();
-  //errs() << "MOI: "; MOI->dump();
   if (MOI->isImm()) {
     switch (MOI->getImm()) {
     default:
       llvm_unreachable("Unrecognized operand type.");
     case StackMaps::DirectMemRefOp: {
-      //errs() << "direct\n";
       auto &DL = AP.MF->getDataLayout();
 
       unsigned Size = DL.getPointerSizeInBits();
@@ -209,7 +217,6 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::IndirectMemRefOp: {
-      //errs() << "indirect\n";
       int64_t Size = (++MOI)->getImm();
       assert(Size > 0 && "Need a valid size for indirect memory locations.");
       Register Reg = (++MOI)->getReg();
@@ -219,7 +226,6 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::ConstantOp: {
-      //errs() << "const\n";
       ++MOI;
       assert(MOI->isImm() && "Expected constant operand.");
       int64_t Imm = MOI->getImm();
@@ -227,7 +233,6 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
       break;
     }
     case StackMaps::NextLive: {
-      //errs() << "nextlive\n";
       // The next argument will be the first location of a new live variable.
       LiveVars.push_back(LocationVec());
     }
@@ -240,7 +245,6 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
   // register content. (The runtime can track the actual size of the data type
   // if it needs to.)
   if (MOI->isReg()) {
-    //errs() << "reg\n";
     // Skip implicit registers (this includes our scratch registers)
     if (MOI->isImplicit())
       return ++MOI;
@@ -268,7 +272,6 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
     return ++MOI;
   }
 
-  //errs() << "other\n";
   if (MOI->isRegLiveOut())
     LiveOuts = parseRegisterLiveOutMask(MOI->getRegLiveOut());
 
@@ -414,16 +417,15 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Flags
   MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts); // Num Deopts
 
-  errs() << "Num Deopts: "; MOI->dump();
-
   // Record Deopt Args.
   unsigned NumDeoptArgs = LiveVars.back().back().Offset;
-  errs() << "NumDeoptArgs: " << LiveVars.back().back().Offset << "\n";
   assert(LiveVars.back().back().Type == Location::Constant);
   assert(NumDeoptArgs == SO.getNumDeoptArgs());
 
+  // Let's not mix the above with the GC pointers and deopts.
+  LiveVars.push_back(LocationVec());
+
   while (NumDeoptArgs) {
-    errs() << "XXX: "; MOI->dump();
     if (MOI->isImm() && (MOI->getImm() == StackMaps::NextLive)) {
         NumDeoptArgs--;
     }
@@ -435,6 +437,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   ++MOI;
   assert(MOI->isImm());
   unsigned NumGCPointers = MOI->getImm();
+  errs() << "NumGCPointers: " << NumGCPointers << "\n";
   ++MOI;
   if (NumGCPointers) {
     // Map logical index of GC ptr to MI operand index.
@@ -442,23 +445,34 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
     unsigned GCPtrIdx = (unsigned)SO.getFirstGCPtrIdx();
     assert((int)GCPtrIdx != -1);
     assert(MOI - MI.operands_begin() == GCPtrIdx + 0LL);
-    while (NumGCPointers--) {
-      GCPtrIndices.push_back(GCPtrIdx);
-      GCPtrIdx = StackMaps::getNextMetaArgIdx(&MI, GCPtrIdx);
-    }
 
+    errs() << "---\n";
+    unsigned NextGCPtrIdx = GCPtrIdx;
+    while (NumGCPointers) {
+      errs() << "GCPtrIndex: " << GCPtrIdx << "\n";
+      MachineOperand MO = MI.getOperand(GCPtrIdx);
+      MO.dump();
+      if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) {
+          NumGCPointers--;
+          GCPtrIndices.push_back(NextGCPtrIdx);
+          NextGCPtrIdx = GCPtrIdx + 1; // If there is another.
+      }
+      errs() << "MMM: "<< GCPtrIdx << "\n";
+      GCPtrIdx = StackMaps::getNextMetaArgIdx(&MI, GCPtrIdx);
+      errs() << "MMM2: "<< GCPtrIdx << "\n";
+    }
+    errs() << "MMM: "<< GCPtrIdx << "\n";
+
+    errs() << "here now\n";
     SmallVector<std::pair<unsigned, unsigned>, 8> GCPairs;
     unsigned NumGCPairs = SO.getGCPointerMap(GCPairs);
     (void)NumGCPairs;
     LLVM_DEBUG(dbgs() << "NumGCPairs = " << NumGCPairs << "\n");
-
-    // XXX: For some reason a statepoint always has 3 constant 0 records in the
-    // stackmap. I don't know why this happens, but let's not mix those in with
-    // the GC pointers.
-    LiveVars.push_back(LocationVec());
+    errs() << "here now\n";
 
     auto MOB = MI.operands_begin();
     for (auto &P : GCPairs) {
+      errs() << "P.first: " << P.first << ", size: " << GCPtrIndices.size() << "\n";
       assert(P.first < GCPtrIndices.size() && "base pointer index not found");
       assert(P.second < GCPtrIndices.size() &&
              "derived pointer index not found");
@@ -474,9 +488,11 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
 
     MOI = MOB + GCPtrIdx;
   }
+  errs() << "GC pointers done\n";
 
   // Record gc allocas
   assert(MOI < MOE);
+  //errs() << "FFF: "; MOI->dump();
   assert(MOI->isImm() && MOI->getImm() == StackMaps::ConstantOp);
   ++MOI;
   unsigned NumAllocas = MOI->getImm();

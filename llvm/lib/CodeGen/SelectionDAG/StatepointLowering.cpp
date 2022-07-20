@@ -430,6 +430,7 @@ lowerIncomingStatepointValue(SDValue Incoming, bool RequireSpillSlot,
              "Incoming value is a frame index!");
       Ops.push_back(Builder.DAG.getTargetFrameIndex(FI->getIndex(),
                                                     Builder.getFrameIndexTy()));
+      Ops.push_back(Builder.DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
 
       auto &MF = Builder.DAG.getMachineFunction();
       auto *MMO = getMachineMemOperand(MF, *FI);
@@ -488,6 +489,7 @@ lowerIncomingStatepointValue(SDValue Incoming, bool RequireSpillSlot,
     SDValue Chain = Builder.getRoot();
     auto Res = spillIncomingStatepointValue(Incoming, Chain, Builder);
     Ops.push_back(std::get<0>(Res));
+    Ops.push_back(Builder.DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
     if (auto *MMO = std::get<2>(Res))
       MemRefs.push_back(MMO);
     Chain = std::get<1>(Res);;
