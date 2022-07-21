@@ -120,7 +120,7 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   unsigned CurIdx = getNumDeoptArgsIdx();
   unsigned NumDeoptArgs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  MI->dump();
+  //MI->dump();
   //errs() << "YYY: " << NumDeoptArgs << "\n";
   while (NumDeoptArgs) {
     //errs() << "XXX: " << CurIdx << "\n";
@@ -172,7 +172,7 @@ StackMaps::StackMaps(AsmPrinter &AP) : AP(AP) {
 unsigned StackMaps::getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx) {
   assert(CurIdx < MI->getNumOperands() && "Bad meta arg index");
   const auto &MO = MI->getOperand(CurIdx);
-  MO.dump();
+  //MO.dump();
   if (MO.isImm()) {
     switch (MO.getImm()) {
     default:
@@ -302,10 +302,10 @@ void StackMaps::print(raw_ostream &OS) {
 
     unsigned LiveVarIdx = 0;
     for (const auto &LiveVar : CSLiveVars) {
-      OS << WSMP << "\t\tLive var  " << LiveVarIdx << ": \n";
+      OS << WSMP << "    Live var " << LiveVarIdx << ":\n";
       unsigned LocIdx = 0;
       for (const auto &Loc : LiveVar) {
-        OS << WSMP << "\t\t\tLoc " << LocIdx << ": ";
+        OS << WSMP << "      Loc " << LocIdx << ": ";
         switch (Loc.Type) {
         case Location::Unprocessed:
           OS << "<Unprocessed operand>";
