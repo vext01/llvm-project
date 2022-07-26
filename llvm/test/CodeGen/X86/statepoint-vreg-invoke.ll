@@ -1,7 +1,5 @@
 ; RUN: llc -max-registers-for-gc-values=4 -stop-after virtregrewriter < %s | FileCheck %s
 
-; YKFIXE: invoke didn't codegen right!
-
 target datalayout = "e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-pc-linux-gnu"
 
@@ -130,11 +128,11 @@ define void @test_duplicate_ir_values() gc "statepoint-example" personality ptr 
 ; CHECK:          bb.1.normal_continue:
 ; CHECK:          renamable $rbx = MOV64rm %stack.0, 1, $noreg, 0, $noreg :: (load (s64) from %stack.0)
 ; CHECK:          $edi = MOV32ri 10
-; CHECK:          dead renamable $rbx = STATEPOINT 2882400000, 0, 1, target-flags(x86-plt) @__llvm_deoptimize, killed $edi, 2, 0, 2, 0, 2, 1, killed renamable $rbx, 3, 2, 1, renamable $rbx(tied-def 0), 3, 2, 0, 2, 1, 0, 0, 3, csr_64, implicit-def $rsp, implicit-def $ssp
+; CHECK:          dead renamable $rbx = STATEPOINT 2882400000, 0, 1, target-flags(x86-plt) @__llvm_deoptimize, killed $edi, 2, 0, 2, 2, 2, 2, killed renamable $rbx, 3, renamable $rbx, 3, 2, 1, renamable $rbx(tied-def 0), 3, 2, 0, 2, 1, 0, 0, 3, csr_64, implicit-def $rsp, implicit-def $ssp
 ; CHECK:          bb.2.exceptional_return (landing-pad):
 ; CHECK:          renamable $rbx = MOV64rm %stack.0, 1, $noreg, 0, $noreg :: (load (s64) from %stack.0)
 ; CHECK:          $edi = MOV32ri -271
-; CHECK:          dead renamable $rbx = STATEPOINT 2882400000, 0, 1, target-flags(x86-plt) @__llvm_deoptimize, killed $edi, 2, 0, 2, 0, 2, 1, killed renamable $rbx, 2, 1, renamable $rbx(tied-def 0), 2, 0, 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
+; CHECK:          dead renamable $rbx = STATEPOINT 2882400000, 0, 1, target-flags(x86-plt) @__llvm_deoptimize, killed $edi, 2, 0, 2, 0, 2, 1, killed renamable $rbx, 3, 2, 1, renamable $rbx(tied-def 0), 3, 2, 0, 2, 1, 0, 0, 3, csr_64, implicit-def $rsp, implicit-def $ssp
 entry:
   %val1 = load ptr addrspace(1), ptr addrspace(1) undef, align 8
   %val2 = load ptr addrspace(1), ptr addrspace(1) undef, align 8
