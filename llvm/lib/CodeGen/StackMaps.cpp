@@ -172,7 +172,8 @@ StackMaps::StackMaps(AsmPrinter &AP) : AP(AP) {
 unsigned StackMaps::getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx) {
   assert(CurIdx < MI->getNumOperands() && "Bad meta arg index");
   const auto &MO = MI->getOperand(CurIdx);
-  //MO.dump();
+  errs() << "Index: " << CurIdx << ": ";
+  MO.dump();
   if (MO.isImm()) {
     switch (MO.getImm()) {
     default:

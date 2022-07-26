@@ -710,6 +710,7 @@ void MachODumper::printUnwindInfo() {
 }
 
 void MachODumper::printStackMap() const {
+    errs() << "hi1\n";
   object::SectionRef StackMapSection;
   for (auto Sec : Obj->sections()) {
     StringRef Name;
@@ -724,6 +725,7 @@ void MachODumper::printStackMap() const {
     }
   }
 
+    errs() << "hi2\n";
   if (StackMapSection == object::SectionRef())
     return;
 
@@ -732,12 +734,14 @@ void MachODumper::printStackMap() const {
   ArrayRef<uint8_t> StackMapContentsArray =
       arrayRefFromStringRef(StackMapContents);
 
+    errs() << "hi3\n";
   if (Obj->isLittleEndian())
     prettyPrintStackMap(
         W, StackMapParser<support::little>(StackMapContentsArray));
   else
     prettyPrintStackMap(
         W, StackMapParser<support::big>(StackMapContentsArray));
+    errs() << "hi4\n";
 }
 
 void MachODumper::printCGProfile() {

@@ -321,7 +321,12 @@ public:
     RecordAccessor(const uint8_t *P) : P(P) {}
 
     unsigned getNumLiveOutsOffset() const {
+      // XXX: EDD THIS NEEDS TO BE REFACTORED.
       uint16_t NumLiveVars = getNumLiveVars();
+
+      if (NumLiveVars == 0)
+          return ((LiveVarsListOffset + 7) & ~0x7) + sizeof(uint16_t);
+
       unsigned EndLastLiveVar = getLiveVarOffset(NumLiveVars - 1);
       unsigned EndLastLoc =
           EndLastLiveVar +
@@ -377,8 +382,10 @@ public:
     unsigned CurrentRecordOffset =
       ConstantsListOffset + getNumConstants() * ConstantSize;
 
+    errs() << "FFF\n";
     for (unsigned I = 0, E = getNumRecords(); I != E; ++I) {
       StackMapRecordOffsets.push_back(CurrentRecordOffset);
+      errs() << "ID: " << RecordAccessor(&StackMapSection[CurrentRecordOffset]).getID() << "\n";
       CurrentRecordOffset +=
         RecordAccessor(&StackMapSection[CurrentRecordOffset]).getSizeInBytes();
     }
