@@ -106,6 +106,7 @@ unsigned StatepointOpers::getNumAllocaIdx() {
   unsigned CurIdx = getNumGCPtrIdx();
   unsigned NumGCPtrs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
+  errs() << __func__ << ": " << NumGCPtrs << "\n";
   while (NumGCPtrs) {
     MachineOperand MO = MI->getOperand(CurIdx);
     if (MO.isImm() && (MO.getImm() == StackMaps::NextLive))
@@ -122,6 +123,7 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   CurIdx++;
   //MI->dump();
   //errs() << "YYY: " << NumDeoptArgs << "\n";
+  errs() << __func__ << ": " << NumDeoptArgs << "\n";
   while (NumDeoptArgs) {
     //errs() << "XXX: " << CurIdx << "\n";
     MachineOperand MO = MI->getOperand(CurIdx);
@@ -172,6 +174,7 @@ StackMaps::StackMaps(AsmPrinter &AP) : AP(AP) {
 unsigned StackMaps::getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx) {
   assert(CurIdx < MI->getNumOperands() && "Bad meta arg index");
   const auto &MO = MI->getOperand(CurIdx);
+  MI->dump();
   errs() << "Index: " << CurIdx << ": ";
   MO.dump();
   if (MO.isImm()) {
@@ -437,6 +440,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   // Let's not mix the above with the GC pointers and deopts.
   LiveVars.push_back(LocationVec());
 
+  errs() << "NumDeopt: " << NumDeoptArgs << "\n";
   while (NumDeoptArgs) {
     if (MOI->isImm() && (MOI->getImm() == StackMaps::NextLive)) {
         NumDeoptArgs--;
@@ -449,7 +453,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   ++MOI;
   assert(MOI->isImm());
   unsigned NumGCPointers = MOI->getImm();
-  //errs() << "NumGCPointers: " << NumGCPointers << "\n";
+  errs() << "NumGCPointers: " << NumGCPointers << "\n";
   ++MOI;
   if (NumGCPointers) {
     // Map logical index of GC ptr to MI operand index.
@@ -460,6 +464,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
 
     //errs() << "---\n";
     bool StartingNewLive = true;
+    errs() << "NumGCPtrs: " << NumGCPointers << "\n";
     while (NumGCPointers) {
       if (StartingNewLive) {
           GCPtrIndices.push_back(GCPtrIdx);
