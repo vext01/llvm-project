@@ -22,9 +22,9 @@ body:              |
   bb.0:
     liveins: $rdi, $r15, $r14
 
-    renamable $rdi = STATEPOINT 0, 0, 0, $r15, 2, 0, 2, 0, 2, 0, 2, 1, killed renamable $rdi, 2, 0, 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
-    renamable $rdi = STATEPOINT 0, 0, 0, $r15, 2, 0, 2, 0, 2, 1, killed renamable $rdi(tied-def 0), 2, 0, 2, 0, 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
-    renamable $r14, renamable $rdi = STATEPOINT 0, 0, 0, $r15, 2, 0, 2, 0, 2, 0, 2, 1, killed renamable $r14(tied-def 0), 2, 1, killed renamable $rdi(tied-def 1), 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
+    renamable $rdi = STATEPOINT 0, 0, 0, $r15, 2, 0, 2, 0, 2, 0, 2, 1, killed renamable $rdi, 3, 2, 0, 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
+    renamable $rdi = STATEPOINT 0, 0, 0, $r15, 2, 0, 2, 0, 2, 1, killed renamable $rdi(tied-def 0), 3, 2, 0, 2, 0, 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
+    renamable $r14, renamable $rdi = STATEPOINT 0, 0, 0, $r15, 2, 0, 2, 0, 2, 0, 2, 1, killed renamable $r14(tied-def 0), 3, 2, 1, killed renamable $rdi(tied-def 1), 2, 1, 0, 0, csr_64, implicit-def $rsp, implicit-def $ssp
     $rax = COPY killed renamable $rdi
     RET 0, killed $rax
 ...

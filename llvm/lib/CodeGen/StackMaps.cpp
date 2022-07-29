@@ -157,7 +157,9 @@ unsigned StatepointOpers::getGCPointerMap(
     //errs() << "D: " << D << "\n";
 
     // Expect a NextLive Marker now.
+    errs() << "Idx: " << CurIdx << "\n";
     unsigned NL = MI->getOperand(CurIdx++).getImm();
+    errs() << "got: " << NL << "\n";
     assert(NL == 3);
 
     GCMap.push_back(std::make_pair(B, D));
