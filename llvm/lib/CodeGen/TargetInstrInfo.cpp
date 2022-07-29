@@ -493,16 +493,12 @@ TargetInstrInfo::getPatchpointUnfoldableRange(const MachineInstr &MI) const {
 static MachineInstr *foldPatchpoint(MachineFunction &MF, MachineInstr &MI,
                                     ArrayRef<unsigned> Ops, int FrameIndex,
                                     const TargetInstrInfo &TII) {
-    //errs() << "MI: ";
-    //MI.dump();
   unsigned StartIdx = 0;
   unsigned NumDefs = 0;
   // getPatchpointUnfoldableRange throws guarantee if MI is not a patchpoint.
   std::tie(NumDefs, StartIdx) = TII.getPatchpointUnfoldableRange(MI);
 
   unsigned DefToFoldIdx = MI.getNumOperands();
-  //errs() << "StartIdx=" << StartIdx << "\n";
-  //errs() << "num opers" << DefToFoldIdx <<"\n";
 
   // Return false if any operands requested for folding are not foldable (not
   // part of the stackmap's live values).
@@ -528,12 +524,6 @@ static MachineInstr *foldPatchpoint(MachineFunction &MF, MachineInstr &MI,
 
   for (unsigned i = StartIdx, e = MI.getNumOperands(); i < e; ++i) {
     MachineOperand &MO = MI.getOperand(i);
-    //errs() << "MO::::: "; MO.dump();
-    //if (MO.isImm() &&  MO.getImm() == StackMaps::NextLive) {
-    //    errs() << "skip\n";
-    //    MIB.add(MO);
-    //    continue;
-    //}
 
     unsigned TiedTo = e;
     (void)MI.isRegTiedToDefOperand(i, &TiedTo);
@@ -549,7 +539,6 @@ static MachineInstr *foldPatchpoint(MachineFunction &MF, MachineInstr &MI,
           TII.getStackSlotRange(RC, MO.getSubReg(), SpillSize, SpillOffset, MF);
       if (!Valid)
         report_fatal_error("cannot spill patchpoint subregister operand");
-     // errs() << "AAAAAAAAAAAAAAAAAAAAAAAAA\n";
       MIB.addImm(StackMaps::IndirectMemRefOp);
       MIB.addImm(SpillSize);
       MIB.addFrameIndex(FrameIndex);

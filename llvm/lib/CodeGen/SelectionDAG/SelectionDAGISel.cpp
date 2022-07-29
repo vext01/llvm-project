@@ -2269,7 +2269,6 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
 
   // Add <numArgs>.
   SDValue NumArgs = *It++;
-  //errs() << "Numargs: "; NumArgs.dump();
   assert(NumArgs.getValueType() == MVT::i32);
   Ops.push_back(NumArgs);
 
@@ -2277,23 +2276,16 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   bool IsAnyRegCC =  cast<ConstantSDNode>(It->getNode())->getZExtValue()== CallingConv::AnyReg;
   Ops.push_back(*It++);
 
-  //errs() << "here\n";
-
   // Push the args for the call by scanning for `NextLive` markers.
   // XXX tidy up
   uint64_t ExpectArgs = cast<ConstantSDNode>(NumArgs)->getZExtValue();
   if (IsAnyRegCC) {
-  //errs() << "Expect: " << ExpectArgs << "\n";
-  //errs() << "args\n";
   while (ExpectArgs) {
-  //  It->get().dump();
     if ((It->getNode()->getOpcode() == ISD::TargetConstant) && (cast<ConstantSDNode>(It->getNode())->getZExtValue() == StackMaps::NextLive)) {
         ExpectArgs--;
     }
-  //  errs() << "herw??\n";
     Ops.push_back(*It++);
   }
-  //errs() << "/args\n";
   } else {
       for (unsigned I = 0; I < ExpectArgs; I++) {
           Ops.push_back(*It++);
@@ -2301,12 +2293,9 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   }
 
   // Now push the live variables.
-  //errs() << "YYY\n";
   for (; It != N->op_end(); It++) {
-    //It->get().dump();
     pushStackMapLiveVariable(Ops, *It, DL);
   }
-  //errs() << "/YYY\n";
 
   // Finally, the regmask, chain and (if present) glue are moved to the end.
   Ops.push_back(RegMask);

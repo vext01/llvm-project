@@ -517,7 +517,6 @@ public:
       MachineOperand &MO = MI.getOperand(I);
       if (I == OpsToSpill[CurOpIdx]) {
         int FI = RegToSlotIdx[MO.getReg()];
-      errs() << "BBBBBBBBBBBBBBBBBBBBBBBBB\n";
         MIB.addImm(StackMaps::IndirectMemRefOp);
         MIB.addImm(getRegisterSize(TRI, MO.getReg()));
         assert(MO.isReg() && "Should be register");

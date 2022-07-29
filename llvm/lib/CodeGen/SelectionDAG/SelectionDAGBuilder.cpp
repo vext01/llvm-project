@@ -9368,33 +9368,20 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigne
   //for (unsigned I = StartIdx; I < Call.arg_size(); I++) {
   for (unsigned I = StartIdx; I < EndIdx; I++) {
     SDValue Op = Builder.getValue(Call.getArgOperand(I));
-    //Op.dump();
-    //if (ForceReg) {
-    //    errs() << "Forced to register\n";
-    //    Ops.push_back(Op);
-    //    Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
-    //    continue;
-    //}
 
     // Things on the stack are pointer-typed, meaning that they are already
     // legal and can be emitted directly to target nodes.
     if (FrameIndexSDNode *FI = dyn_cast<FrameIndexSDNode>(Op)) {
-        //errs() << "frame\n";
       Ops.push_back(DAG.getTargetFrameIndex(FI->getIndex(), Op.getValueType()));
     } else {
-        //errs() << "not frame\n";
       // Otherwise emit a target independent node to be legalised.
       if (Op.getOpcode() == ISD::MERGE_VALUES) {
-        //errs() << "  not frameindex merged\n";
         for (unsigned J = 0; J < Op.getNumOperands(); J++)
           Ops.push_back(Op.getOperand(J));
       } else {
-        //errs() << "  not frameindex\n";
-        //Op.dump();
         Ops.push_back(Op);
       }
     }
-    //errs() << "add nextlive\n";
     Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, DL, MVT::i64));
   }
 }
@@ -9504,7 +9491,6 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   unsigned NumCallArgs = IsAnyRegCC ? 0 : NumArgs;
   Type *ReturnTy =
       IsAnyRegCC ? Type::getVoidTy(*DAG.getContext()) : CB.getType();
-  //errs() << "NumCallARgs: " << NumCallArgs << "\n";
 
   TargetLowering::CallLoweringInfo CLI(DAG);
   populateCallLoweringInfo(CLI, &CB, NumMetaOpers, NumCallArgs, Callee,
@@ -9556,43 +9542,25 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   unsigned NumCallRegArgs = Call->getNumOperands() - (HasGlue ? 4 : 3);
   NumCallRegArgs = IsAnyRegCC ? NumArgs : NumCallRegArgs;
   Ops.push_back(DAG.getTargetConstant(NumCallRegArgs, dl, MVT::i32));
-  //errs() << "NumCallRegArgs=" << NumCallRegArgs << "\n";
 
   // Add the calling convention
   Ops.push_back(DAG.getTargetConstant((unsigned)CC, dl, MVT::i32));
 
   // Add the arguments we omitted previously. The register allocator should
   // place these in any free register.
-  //unsigned NextLiveSkew = 0;
-  //errs() <<  "HHH HHH HHH\n";
   if (IsAnyRegCC) {
-      errs() << "anyregcc\n";
       for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i) {
           Ops.push_back(getValue(CB.getArgOperand(i)));
-          //Ops.back().dump();
           Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, dl, MVT::i64));
-          //NextLiveSkew++;
       }
-    // XXX should be equivalent.
-    // XXX EDD
-    // Why do these operands not get forced to register in the case of spill?
-    //addStackMapLiveVars(CB, NumMetaOpers, NumMetaOpers + NumArgs, dl, Ops, *this, true);
   }
- // errs() << "/HHH HHH HHH\n";
 
   // Push the arguments from the call instruction.
   SDNode::op_iterator e = HasGlue ? Call->op_end()-2 : Call->op_end()-1;
   Ops.append(Call->op_begin() + 2, e);
-  //errs() << "EXTRA: \n";
-  //for (auto *X = Call->op_begin() + 2; X != e; X++) {
-  //    //Ops.push_back(*X);
-  // //   errs() << "  *\n"; X->get().dump();
-  //}
 
   // Push live variables for the stack map.
-  //errs() << "XXX\n";
   addStackMapLiveVars(CB, NumMetaOpers + NumArgs, CB.arg_size(), dl, Ops, *this);
-  //errs() << "/XXX\n";
 
   SDVTList NodeTys;
   if (IsAnyRegCC && HasDef) {

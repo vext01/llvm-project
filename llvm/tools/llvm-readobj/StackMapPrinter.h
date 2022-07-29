@@ -17,8 +17,6 @@ namespace llvm {
 // Pretty print a stackmap to the given ostream.
 template <typename StackMapParserT>
 void prettyPrintStackMap(ScopedPrinter &W, const StackMapParserT &SMP) {
-    errs() << "Pretty\n";
-
   W.printNumber("LLVM StackMap Version",  SMP.getVersion());
   W.printNumber("Num Functions", SMP.getNumFunctions());
 

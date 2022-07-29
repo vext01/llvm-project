@@ -382,10 +382,8 @@ public:
     unsigned CurrentRecordOffset =
       ConstantsListOffset + getNumConstants() * ConstantSize;
 
-    errs() << "FFF\n";
     for (unsigned I = 0, E = getNumRecords(); I != E; ++I) {
       StackMapRecordOffsets.push_back(CurrentRecordOffset);
-      errs() << "ID: " << RecordAccessor(&StackMapSection[CurrentRecordOffset]).getID() << "\n";
       CurrentRecordOffset +=
         RecordAccessor(&StackMapSection[CurrentRecordOffset]).getSizeInBytes();
     }
