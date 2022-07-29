@@ -59,101 +59,6 @@ public:
   }
 };
 
-/// MI-level patchpoint operands.
-///
-/// MI patchpoint operations take the form:
-/// [<def>], <id>, <numBytes>, <target>, <numArgs>, <cc>, ...
-///
-/// IR patchpoint intrinsics do not have the <cc> operand because calling
-/// convention is part of the subclass data.
-///
-/// SD patchpoint nodes do not have a def operand because it is part of the
-/// SDValue.
-///
-/// Patchpoints following the anyregcc convention are handled specially. For
-/// these, the stack map also records the location of the return value and
-/// arguments.
-class PatchPointOpers {
-public:
-  /// Enumerate the meta operands.
-  enum { IDPos, NBytesPos, TargetPos, NArgPos, CCPos, MetaEnd };
-
-private:
-  const MachineInstr *MI;
-  bool HasDef;
-
-  unsigned getMetaIdx(unsigned Pos = 0) const {
-    assert(Pos < MetaEnd && "Meta operand index out of range.");
-    return (HasDef ? 1 : 0) + Pos;
-  }
-
-  const MachineOperand &getMetaOper(unsigned Pos) const {
-    return MI->getOperand(getMetaIdx(Pos));
-  }
-
-public:
-  explicit PatchPointOpers(const MachineInstr *MI);
-
-  bool isAnyReg() const { return (getCallingConv() == CallingConv::AnyReg); }
-  bool hasDef() const { return HasDef; }
-
-  /// Return the ID for the given patchpoint.
-  uint64_t getID() const { return getMetaOper(IDPos).getImm(); }
-
-  /// Return the number of patchable bytes the given patchpoint should emit.
-  uint32_t getNumPatchBytes() const {
-    return getMetaOper(NBytesPos).getImm();
-  }
-
-  /// Returns the target of the underlying call.
-  const MachineOperand &getCallTarget() const {
-    return getMetaOper(TargetPos);
-  }
-
-  /// Returns the calling convention
-  CallingConv::ID getCallingConv() const {
-    return getMetaOper(CCPos).getImm();
-  }
-
-  unsigned getArgIdx() const { return getMetaIdx() + MetaEnd; }
-
-  /// Return the number of call arguments
-  uint32_t getNumCallArgs() const {
-    return MI->getOperand(getMetaIdx(NArgPos)).getImm();
-  }
-
-  /// Get the operand index of the variable list of non-argument operands.
-  /// These hold the "live state".
-  unsigned getVarIdx() const {
-    if (!isAnyReg())
-        return getMetaIdx() + MetaEnd + getNumCallArgs();
-
-    // For anyregcc, the args go into the stackmap section and thus each
-    // arguments isn't necessarily of fixed sized. We will have to scan until
-    // we have seen enough NextLive markers.
-    unsigned Idx = getMetaIdx() + MetaEnd;
-    unsigned Remain = getNumCallArgs();
-    while (Remain) {
-      MachineOperand MO = MI->getOperand(Idx);
-      if ((MO.isImm()) && (MO.getImm() == 3)) // XXX NextLive
-          Remain--;
-      Idx++; // XXX getNextMetaArgIdx.
-    }
-    return Idx;
-  }
-
-  /// Get the index at which stack map locations will be recorded.
-  /// Arguments are not recorded unless the anyregcc convention is used.
-  unsigned getStackMapStartIdx() const {
-    if (isAnyReg())
-      return getArgIdx();
-    return getVarIdx();
-  }
-
-  /// Get the next scratch register operand index.
-  unsigned getNextScratchIdx(unsigned StartIdx = 0) const;
-};
-
 /// MI-level Statepoint operands
 ///
 /// Statepoint operands take the form:
@@ -310,6 +215,13 @@ public:
   /// Similar to parseOperand, but does not actually parses operand meaning.
   static unsigned getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx);
 
+  static bool isNextLive(MachineOperand &MO) {
+    return isNextLive(const_cast<const MachineOperand&>(MO));
+  }
+  static bool isNextLive(const MachineOperand &MO) {
+    return MO.isImm() && (MO.getImm() == NextLive);
+  }
+
   void reset() {
     CSInfos.clear();
     ConstPool.clear();
@@ -426,6 +338,103 @@ private:
   void print(raw_ostream &OS);
   void debug() { print(dbgs()); }
 };
+
+/// MI-level patchpoint operands.
+///
+/// MI patchpoint operations take the form:
+/// [<def>], <id>, <numBytes>, <target>, <numArgs>, <cc>, ...
+///
+/// IR patchpoint intrinsics do not have the <cc> operand because calling
+/// convention is part of the subclass data.
+///
+/// SD patchpoint nodes do not have a def operand because it is part of the
+/// SDValue.
+///
+/// Patchpoints following the anyregcc convention are handled specially. For
+/// these, the stack map also records the location of the return value and
+/// arguments.
+class PatchPointOpers {
+public:
+  /// Enumerate the meta operands.
+  enum { IDPos, NBytesPos, TargetPos, NArgPos, CCPos, MetaEnd };
+
+private:
+  const MachineInstr *MI;
+  bool HasDef;
+
+  unsigned getMetaIdx(unsigned Pos = 0) const {
+    assert(Pos < MetaEnd && "Meta operand index out of range.");
+    return (HasDef ? 1 : 0) + Pos;
+  }
+
+  const MachineOperand &getMetaOper(unsigned Pos) const {
+    return MI->getOperand(getMetaIdx(Pos));
+  }
+
+public:
+  explicit PatchPointOpers(const MachineInstr *MI);
+
+  bool isAnyReg() const { return (getCallingConv() == CallingConv::AnyReg); }
+  bool hasDef() const { return HasDef; }
+
+  /// Return the ID for the given patchpoint.
+  uint64_t getID() const { return getMetaOper(IDPos).getImm(); }
+
+  /// Return the number of patchable bytes the given patchpoint should emit.
+  uint32_t getNumPatchBytes() const {
+    return getMetaOper(NBytesPos).getImm();
+  }
+
+  /// Returns the target of the underlying call.
+  const MachineOperand &getCallTarget() const {
+    return getMetaOper(TargetPos);
+  }
+
+  /// Returns the calling convention
+  CallingConv::ID getCallingConv() const {
+    return getMetaOper(CCPos).getImm();
+  }
+
+  unsigned getArgIdx() const { return getMetaIdx() + MetaEnd; }
+
+  /// Return the number of call arguments
+  uint32_t getNumCallArgs() const {
+    return MI->getOperand(getMetaIdx(NArgPos)).getImm();
+  }
+
+  /// Get the operand index of the variable list of non-argument operands.
+  /// These hold the "live state".
+  unsigned getVarIdx() const {
+    if (!isAnyReg())
+        return getMetaIdx() + MetaEnd + getNumCallArgs();
+
+    // For anyregcc, the args go into the stackmap section and thus each
+    // arguments isn't necessarily of fixed sized. We will have to scan until
+    // we have seen enough NextLive markers.
+    unsigned Idx = getMetaIdx() + MetaEnd;
+    unsigned Remain = getNumCallArgs();
+    while (Remain) {
+      MachineOperand MO = MI->getOperand(Idx);
+      if (StackMaps::isNextLive(MO))
+          Remain--;
+      Idx = StackMaps::getNextMetaArgIdx(MI, Idx);
+    }
+    return Idx;
+  }
+
+  /// Get the index at which stack map locations will be recorded.
+  /// Arguments are not recorded unless the anyregcc convention is used.
+  unsigned getStackMapStartIdx() const {
+    if (isAnyReg())
+      return getArgIdx();
+    return getVarIdx();
+  }
+
+  /// Get the next scratch register operand index.
+  unsigned getNextScratchIdx(unsigned StartIdx = 0) const;
+};
+
+
 
 } // end namespace llvm
 

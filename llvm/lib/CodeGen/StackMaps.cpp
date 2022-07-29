@@ -108,7 +108,7 @@ unsigned StatepointOpers::getNumAllocaIdx() {
   CurIdx++;
   while (NumGCPtrs) {
     MachineOperand MO = MI->getOperand(CurIdx);
-    if (MO.isImm() && (MO.getImm() == StackMaps::NextLive))
+    if (StackMaps::isNextLive(MO))
         NumGCPtrs--;
     CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
   }
@@ -122,7 +122,7 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   CurIdx++;
   while (NumDeoptArgs) {
     MachineOperand MO = MI->getOperand(CurIdx);
-    if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) // XXX factor this check out
+    if (StackMaps::isNextLive(MO))
         NumDeoptArgs--;
     CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
   }
@@ -148,9 +148,9 @@ unsigned StatepointOpers::getGCPointerMap(
     unsigned B = MI->getOperand(CurIdx++).getImm();
     unsigned D = MI->getOperand(CurIdx++).getImm();
 
-    // Expect a NextLive Marker now.
-    unsigned NL = MI->getOperand(CurIdx++).getImm();
-    assert(NL == 3); // XXX
+    // Skip the NextLive marker.
+    MachineOperand NL = MI->getOperand(CurIdx++);
+    assert(StackMaps::isNextLive(NL));
 
     GCMap.push_back(std::make_pair(B, D));
   }
@@ -430,9 +430,8 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
   LiveVars.push_back(LocationVec());
 
   while (NumDeoptArgs) {
-    if (MOI->isImm() && (MOI->getImm() == StackMaps::NextLive)) {
+    if (StackMaps::isNextLive(*MOI))
         NumDeoptArgs--;
-    }
     MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
   }
 
@@ -456,7 +455,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
           StartingNewLive = false;
       }
       MachineOperand MO = MI.getOperand(GCPtrIdx);
-      if (MO.isImm() && (MO.getImm() == StackMaps::NextLive)) {
+      if (StackMaps::isNextLive(MO)) {
           NumGCPointers--;
           StartingNewLive = true;
       }
