@@ -321,19 +321,11 @@ public:
     RecordAccessor(const uint8_t *P) : P(P) {}
 
     unsigned getNumLiveOutsOffset() const {
-      // XXX: EDD THIS NEEDS TO BE REFACTORED.
-      uint16_t NumLiveVars = getNumLiveVars();
-
-      if (NumLiveVars == 0)
-          return ((LiveVarsListOffset + 7) & ~0x7) + sizeof(uint16_t);
-
-      unsigned EndLastLiveVar = getLiveVarOffset(NumLiveVars - 1);
-      unsigned EndLastLoc =
-          EndLastLiveVar +
-          getLiveVar(NumLiveVars - 1).getNumLocations() * LocationSize;
-      // Apply padding.
-      EndLastLiveVar = (EndLastLoc + 7) & ~0x7;
-      return EndLastLiveVar + sizeof(uint16_t);
+      unsigned Idx = getLiveVarOffset(getNumLiveVars());
+      // Idx now points past the end of the last live variable. Apply padding
+      // and we are done.
+      Idx = (Idx + 7) & ~0x7;
+      return Idx + sizeof(uint16_t);
     }
 
     unsigned getSizeInBytes() const {
