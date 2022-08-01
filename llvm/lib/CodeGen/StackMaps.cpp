@@ -101,12 +101,13 @@ unsigned StatepointOpers::getNumGcMapEntriesIdx() {
   return CurIdx + 1; // skip <StackMaps::ConstantOp>
 }
 
-unsigned StatepointOpers::skipLiveVars(const MachineInstr *MI, unsigned StartIdx, unsigned NumVars) {
+unsigned StatepointOpers::skipLiveVars(const MachineInstr *MI,
+                                       unsigned StartIdx, unsigned NumVars) {
   unsigned CurIdx = StartIdx;
   while (NumVars) {
     MachineOperand MO = MI->getOperand(CurIdx);
     if (StackMaps::isNextLive(MO))
-        NumVars--;
+      NumVars--;
     CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
   }
   return CurIdx;
@@ -117,7 +118,8 @@ unsigned StatepointOpers::getNumAllocaIdx() {
   unsigned CurIdx = getNumGCPtrIdx();
   unsigned NumGCPtrs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  return skipLiveVars(MI, CurIdx, NumGCPtrs) + 1; // +1 skips <StackMaps::ConstantOp>
+  return skipLiveVars(MI, CurIdx, NumGCPtrs) +
+         1; // +1 skips <StackMaps::ConstantOp>
 }
 
 unsigned StatepointOpers::getNumGCPtrIdx() {
@@ -125,7 +127,8 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   unsigned CurIdx = getNumDeoptArgsIdx();
   unsigned NumDeoptArgs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  return skipLiveVars(MI, CurIdx, NumDeoptArgs) + 1; // +1 skips <StackMaps::ConstantOp>
+  return skipLiveVars(MI, CurIdx, NumDeoptArgs) +
+         1; // +1 skips <StackMaps::ConstantOp>
 }
 
 int StatepointOpers::getFirstGCPtrIdx() {
@@ -430,7 +433,7 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
 
   while (NumDeoptArgs) {
     if (StackMaps::isNextLive(*MOI))
-        NumDeoptArgs--;
+      NumDeoptArgs--;
     MOI = parseOperand(MOI, MOE, LiveVars, LiveOuts);
   }
 
@@ -450,13 +453,13 @@ void StackMaps::parseStatepointOpers(const MachineInstr &MI,
     bool StartingNewLive = true;
     while (NumGCPointers) {
       if (StartingNewLive) {
-          GCPtrIndices.push_back(GCPtrIdx);
-          StartingNewLive = false;
+        GCPtrIndices.push_back(GCPtrIdx);
+        StartingNewLive = false;
       }
       MachineOperand MO = MI.getOperand(GCPtrIdx);
       if (StackMaps::isNextLive(MO)) {
-          NumGCPointers--;
-          StartingNewLive = true;
+        NumGCPointers--;
+        StartingNewLive = true;
       }
       GCPtrIdx = StackMaps::getNextMetaArgIdx(&MI, GCPtrIdx);
     }
@@ -548,11 +551,11 @@ void StackMaps::recordStackMapOpers(const MCSymbol &MILabel,
   // empty LocationVec, which we can now strip. This also serves as a useful
   // sanity check.
   if (LiveVars.back().size() != 0) {
-      // The user can see this if something else went wrong in the backend,
-      // thus leaving the stackmap data in an inconsistent state.
-      MI.emitError("expected empty LocationVec");
+    // The user can see this if something else went wrong in the backend,
+    // thus leaving the stackmap data in an inconsistent state.
+    MI.emitError("expected empty LocationVec");
   } else {
-      LiveVars.pop_back();
+    LiveVars.pop_back();
   }
 
   // Create an expression to calculate the offset of the callsite from function
@@ -603,7 +606,7 @@ void StackMaps::recordPatchPoint(const MCSymbol &L, const MachineInstr &MI) {
   if (opers.isAnyReg()) {
     unsigned NArgs = opers.getNumCallArgs();
     for (unsigned i = 0, e = (opers.hasDef() ? NArgs + 1 : NArgs); i != e; ++i)
-      for (auto &Loc: LiveVars[i])
+      for (auto &Loc : LiveVars[i])
         assert(Loc.Type == Location::Register && "anyreg arg must be in reg.");
   }
 #endif

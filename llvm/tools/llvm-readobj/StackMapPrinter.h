@@ -77,7 +77,6 @@ void prettyPrintStackMap(ScopedPrinter &W, const StackMapParserT &SMP) {
     OS << "]\n";
   }
 }
-
 }
 
 #endif

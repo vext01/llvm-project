@@ -150,8 +150,10 @@ public:
   /// Get index of number of gc allocas.
   unsigned getNumAllocaIdx();
 
-  /// Return the index after skipping `NumVars` live variables, starting from `StartIdx`.
-  unsigned skipLiveVars(const MachineInstr *MI, unsigned StartIdx, unsigned NumVars);
+  /// Return the index after skipping `NumVars` live variables, starting from
+  /// `StartIdx`.
+  unsigned skipLiveVars(const MachineInstr *MI, unsigned StartIdx,
+                        unsigned NumVars);
 
   /// Get index of number of GC pointers.
   unsigned getNumGCPtrIdx();
@@ -219,7 +221,7 @@ public:
   static unsigned getNextMetaArgIdx(const MachineInstr *MI, unsigned CurIdx);
 
   static bool isNextLive(MachineOperand &MO) {
-    return isNextLive(const_cast<const MachineOperand&>(MO));
+    return isNextLive(const_cast<const MachineOperand &>(MO));
   }
   static bool isNextLive(const MachineOperand &MO) {
     return MO.isImm() && (MO.getImm() == NextLive);
@@ -384,19 +386,13 @@ public:
   uint64_t getID() const { return getMetaOper(IDPos).getImm(); }
 
   /// Return the number of patchable bytes the given patchpoint should emit.
-  uint32_t getNumPatchBytes() const {
-    return getMetaOper(NBytesPos).getImm();
-  }
+  uint32_t getNumPatchBytes() const { return getMetaOper(NBytesPos).getImm(); }
 
   /// Returns the target of the underlying call.
-  const MachineOperand &getCallTarget() const {
-    return getMetaOper(TargetPos);
-  }
+  const MachineOperand &getCallTarget() const { return getMetaOper(TargetPos); }
 
   /// Returns the calling convention
-  CallingConv::ID getCallingConv() const {
-    return getMetaOper(CCPos).getImm();
-  }
+  CallingConv::ID getCallingConv() const { return getMetaOper(CCPos).getImm(); }
 
   unsigned getArgIdx() const { return getMetaIdx() + MetaEnd; }
 
@@ -409,7 +405,7 @@ public:
   /// These hold the "live state".
   unsigned getVarIdx() const {
     if (!isAnyReg())
-        return getMetaIdx() + MetaEnd + getNumCallArgs();
+      return getMetaIdx() + MetaEnd + getNumCallArgs();
 
     // For anyregcc, the args go into the stackmap section and thus each
     // arguments isn't necessarily of fixed sized. We will have to scan until
@@ -419,7 +415,7 @@ public:
     while (Remain) {
       MachineOperand MO = MI->getOperand(Idx);
       if (StackMaps::isNextLive(MO))
-          Remain--;
+        Remain--;
       Idx = StackMaps::getNextMetaArgIdx(MI, Idx);
     }
     return Idx;
@@ -436,8 +432,6 @@ public:
   /// Get the next scratch register operand index.
   unsigned getNextScratchIdx(unsigned StartIdx = 0) const;
 };
-
-
 
 } // end namespace llvm
 

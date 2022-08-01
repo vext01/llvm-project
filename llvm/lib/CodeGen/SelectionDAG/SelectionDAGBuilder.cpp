@@ -9361,9 +9361,11 @@ void SelectionDAGBuilder::populateCallLoweringInfo(
 /// assumption made by the llvm.gcroot intrinsic). If the alloca's location were
 /// only available in a register, then the runtime would need to trap when
 /// execution reaches the StackMap in order to read the alloca's location.
-static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigned EndIdx,
-                                const SDLoc &DL, SmallVectorImpl<SDValue> &Ops,
-                                SelectionDAGBuilder &Builder, bool ForceReg=false) {
+static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx,
+                                unsigned EndIdx, const SDLoc &DL,
+                                SmallVectorImpl<SDValue> &Ops,
+                                SelectionDAGBuilder &Builder,
+                                bool ForceReg = false) {
   SelectionDAG &DAG = Builder.DAG;
   for (unsigned I = StartIdx; I < EndIdx; I++) {
     SDValue Op = Builder.getValue(Call.getArgOperand(I));
@@ -9548,10 +9550,10 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   // Add the arguments we omitted previously. The register allocator should
   // place these in any free register.
   if (IsAnyRegCC) {
-      for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i) {
-          Ops.push_back(getValue(CB.getArgOperand(i)));
-          Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, dl, MVT::i64));
-      }
+    for (unsigned i = NumMetaOpers, e = NumMetaOpers + NumArgs; i != e; ++i) {
+      Ops.push_back(getValue(CB.getArgOperand(i)));
+      Ops.push_back(DAG.getTargetConstant(StackMaps::NextLive, dl, MVT::i64));
+    }
   }
 
   // Push the arguments from the call instruction.
@@ -9559,7 +9561,8 @@ void SelectionDAGBuilder::visitPatchpoint(const CallBase &CB,
   Ops.append(Call->op_begin() + 2, e);
 
   // Push live variables for the stack map.
-  addStackMapLiveVars(CB, NumMetaOpers + NumArgs, CB.arg_size(), dl, Ops, *this);
+  addStackMapLiveVars(CB, NumMetaOpers + NumArgs, CB.arg_size(), dl, Ops,
+                      *this);
 
   SDVTList NodeTys;
   if (IsAnyRegCC && HasDef) {

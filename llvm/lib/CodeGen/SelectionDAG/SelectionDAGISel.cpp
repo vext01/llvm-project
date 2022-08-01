@@ -2273,7 +2273,8 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
   Ops.push_back(NumArgs);
 
   // Calling convention.
-  bool IsAnyRegCC =  cast<ConstantSDNode>(It->getNode())->getZExtValue()== CallingConv::AnyReg;
+  bool IsAnyRegCC = cast<ConstantSDNode>(It->getNode())->getZExtValue() ==
+                    CallingConv::AnyReg;
   Ops.push_back(*It++);
 
   uint64_t ExpectArgs = cast<ConstantSDNode>(NumArgs)->getZExtValue();
@@ -2282,13 +2283,13 @@ void SelectionDAGISel::Select_PATCHPOINT(SDNode *N) {
     while (ExpectArgs) {
       SDNode *ItN = It->getNode();
       if ((ItN->getOpcode() == ISD::TargetConstant) &&
-              (cast<ConstantSDNode>(ItN)->getZExtValue() == StackMaps::NextLive))
-          ExpectArgs--;
+          (cast<ConstantSDNode>(ItN)->getZExtValue() == StackMaps::NextLive))
+        ExpectArgs--;
       Ops.push_back(*It++);
     }
   } else {
-      for (unsigned I = 0; I < ExpectArgs; I++)
-          Ops.push_back(*It++);
+    for (unsigned I = 0; I < ExpectArgs; I++)
+      Ops.push_back(*It++);
   }
 
   // Now push the live variables.
