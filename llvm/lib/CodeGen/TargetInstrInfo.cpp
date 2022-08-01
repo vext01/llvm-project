@@ -524,7 +524,6 @@ static MachineInstr *foldPatchpoint(MachineFunction &MF, MachineInstr &MI,
 
   for (unsigned i = StartIdx, e = MI.getNumOperands(); i < e; ++i) {
     MachineOperand &MO = MI.getOperand(i);
-
     unsigned TiedTo = e;
     (void)MI.isRegTiedToDefOperand(i, &TiedTo);
 

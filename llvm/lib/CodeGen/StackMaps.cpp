@@ -739,7 +739,7 @@ void StackMaps::emitCallsiteEntries(MCStreamer &OS) {
     OS.emitInt16(CSLiveVars.size()); // Num lives.
 
     for (const auto &LiveVar : CSLiveVars) {
-      OS.emitIntValue(LiveVar.size(), 1); // Num locations.
+      OS.emitIntValue(LiveVar.size(), 1); // Num locations for the live var.
       for (const auto &Loc : LiveVar) {
         OS.emitIntValue(Loc.Type, 1);
         OS.emitIntValue(0, 1); // Reserved
