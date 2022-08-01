@@ -101,18 +101,23 @@ unsigned StatepointOpers::getNumGcMapEntriesIdx() {
   return CurIdx + 1; // skip <StackMaps::ConstantOp>
 }
 
+unsigned StatepointOpers::skipLiveVars(const MachineInstr *MI, unsigned StartIdx, unsigned NumVars) {
+  unsigned CurIdx = StartIdx;
+  while (NumVars) {
+    MachineOperand MO = MI->getOperand(CurIdx);
+    if (StackMaps::isNextLive(MO))
+        NumVars--;
+    CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
+  }
+  return CurIdx;
+}
+
 unsigned StatepointOpers::getNumAllocaIdx() {
   // Take index of num of gc ptrs and skip all gc ptr records.
   unsigned CurIdx = getNumGCPtrIdx();
   unsigned NumGCPtrs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  while (NumGCPtrs) {
-    MachineOperand MO = MI->getOperand(CurIdx);
-    if (StackMaps::isNextLive(MO))
-        NumGCPtrs--;
-    CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
-  }
-  return CurIdx + 1; // skip <StackMaps::ConstantOp>
+  return skipLiveVars(MI, CurIdx, NumGCPtrs) + 1; // +1 skips <StackMaps::ConstantOp>
 }
 
 unsigned StatepointOpers::getNumGCPtrIdx() {
@@ -120,13 +125,7 @@ unsigned StatepointOpers::getNumGCPtrIdx() {
   unsigned CurIdx = getNumDeoptArgsIdx();
   unsigned NumDeoptArgs = getConstMetaVal(*MI, CurIdx - 1);
   CurIdx++;
-  while (NumDeoptArgs) {
-    MachineOperand MO = MI->getOperand(CurIdx);
-    if (StackMaps::isNextLive(MO))
-        NumDeoptArgs--;
-    CurIdx = StackMaps::getNextMetaArgIdx(MI, CurIdx);
-  }
-  return CurIdx + 1; // skip <StackMaps::ConstantOp>
+  return skipLiveVars(MI, CurIdx, NumDeoptArgs) + 1; // +1 skips <StackMaps::ConstantOp>
 }
 
 int StatepointOpers::getFirstGCPtrIdx() {

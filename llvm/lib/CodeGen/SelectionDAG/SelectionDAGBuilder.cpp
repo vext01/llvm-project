@@ -9365,7 +9365,6 @@ static void addStackMapLiveVars(const CallBase &Call, unsigned StartIdx, unsigne
                                 const SDLoc &DL, SmallVectorImpl<SDValue> &Ops,
                                 SelectionDAGBuilder &Builder, bool ForceReg=false) {
   SelectionDAG &DAG = Builder.DAG;
-  //for (unsigned I = StartIdx; I < Call.arg_size(); I++) {
   for (unsigned I = StartIdx; I < EndIdx; I++) {
     SDValue Op = Builder.getValue(Call.getArgOperand(I));
 

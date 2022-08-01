@@ -150,6 +150,9 @@ public:
   /// Get index of number of gc allocas.
   unsigned getNumAllocaIdx();
 
+  /// Return the index after skipping `NumVars` live variables, starting from `StartIdx`.
+  unsigned skipLiveVars(const MachineInstr *MI, unsigned StartIdx, unsigned NumVars);
+
   /// Get index of number of GC pointers.
   unsigned getNumGCPtrIdx();
 

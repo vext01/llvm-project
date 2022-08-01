@@ -339,7 +339,7 @@ public:
     }
 
     unsigned getLiveVarOffset(uint8_t LiveVarIndex) const {
-      // XXX offsets could be cached/precomputed.
+      // YKFIXME: for better performance, these offsets could be precomputed.
       unsigned Off = LiveVarsListOffset;
       LiveVarAccessor LA(P + Off);
       for (uint8_t I = 0; I < LiveVarIndex; I++) {
