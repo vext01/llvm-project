@@ -597,18 +597,15 @@ void StackMaps::recordPatchPoint(const MCSymbol &L, const MachineInstr &MI) {
   recordStackMapOpers(L, MI, ID, MOI, MI.operands_end(),
                       opers.isAnyReg() && opers.hasDef());
 
-#if 0
-  XXX fix
 #ifndef NDEBUG
   // verify anyregcc
-  auto &Locations = CSInfos.back().LiveVars;
+  auto &LiveVars = CSInfos.back().LiveVars;
   if (opers.isAnyReg()) {
     unsigned NArgs = opers.getNumCallArgs();
     for (unsigned i = 0, e = (opers.hasDef() ? NArgs + 1 : NArgs); i != e; ++i)
-      assert(Locations[i].Type == Location::Register &&
-             "anyreg arg must be in reg.");
+      for (auto &Loc: LiveVars[i])
+        assert(Loc.Type == Location::Register && "anyreg arg must be in reg.");
   }
-#endif
 #endif
 }
 
