@@ -109,6 +109,8 @@ static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
 }
 
+static cl::opt<std::string> NewPMPasses("newpm-passes", cl::Optional, cl::desc("XXX"), cl::init(""));
+
 namespace {
 
 // Default filename used for profile generation.
@@ -994,7 +996,14 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(InstrProfiling(*Options, false));
           });
 
-    if (CodeGenOpts.OptimizationLevel == 0) {
+    if (!NewPMPasses.empty()) {
+      errs() << "Custom pipeline!!!!!!!!!!!!!!!\n";
+      MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
+      if (auto Err = PB.parsePassPipeline(MPM, NewPMPasses)) {
+        report_fatal_error(Twine("unable to parse pass pipeline description '") +
+            NewPMPasses + "': " + toString(std::move(Err)));
+      }
+    } else if (CodeGenOpts.OptimizationLevel == 0) {
       MPM = PB.buildO0DefaultPipeline(Level, IsLTO || IsThinLTO);
     } else if (IsThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
