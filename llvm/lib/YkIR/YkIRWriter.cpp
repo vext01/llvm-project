@@ -7,6 +7,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -39,7 +40,6 @@ enum OpCode {
   Store,
   Alloca,
   Call,
-  GetElementPtr,
   Br,
   CondBr,
   ICmp,
@@ -57,6 +57,7 @@ enum OperandKind {
   Function,
   Block,
   Arg,
+  Global,
   UnimplementedOperand = 255,
 };
 
@@ -222,9 +223,18 @@ private:
     OutStreamer.emitSizeT(A->getArgNo());
   }
 
+  void serialiseGlobalOperand(GlobalVariable *G) {
+    OutStreamer.emitInt8(OperandKind::Global);
+    // FIXME: do we need a type in here?
+    // FIXME: don't copy the string every time, use a string table.
+    serialiseString(G->getName());
+  }
+
   void serialiseOperand(Instruction *Parent, ValueLoweringMap &VLMap,
                         Value *V) {
-    if (llvm::Function *F = dyn_cast<llvm::Function>(V)) {
+    if (llvm::GlobalVariable *G = dyn_cast<llvm::GlobalVariable>(V)) {
+      serialiseGlobalOperand(G);
+    } else if (llvm::Function *F = dyn_cast<llvm::Function>(V)) {
       serialiseFunctionOperand(F);
     } else if (llvm::Constant *C = dyn_cast<llvm::Constant>(V)) {
       serialiseConstantOperand(Parent, C);
@@ -352,16 +362,6 @@ private:
     InstIdx++;
   }
 
-  void serialiseStore(StoreInst *I, ValueLoweringMap &VLMap, unsigned BBIdx,
-      unsigned &InstIdx)
-  {
-    if (I->getNumOperands() == 2) {
-      serialiseInstGeneric(I, VLMap, BBIdx, InstIdx, OpCode::Store);
-    } else {
-      serialiseUnimplementedInstruction(I, VLMap, BBIdx, InstIdx);
-    }
-  }
-
   void serialiseInst(Instruction *I, ValueLoweringMap &VLMap, unsigned BBIdx,
                      unsigned &InstIdx) {
 // Macros to help dispatch to serialisers.
@@ -384,12 +384,12 @@ private:
     GENERIC_INST_SERIALISE(I, llvm::BinaryOperator, BinaryOperator)
     GENERIC_INST_SERIALISE(I, ReturnInst, Ret)
     GENERIC_INST_SERIALISE(I, llvm::InsertValueInst, InsertValue)
+    GENERIC_INST_SERIALISE(I, StoreInst, Store)
 
     CUSTOM_INST_SERIALISE(I, AllocaInst, serialiseAllocaInst)
     CUSTOM_INST_SERIALISE(I, CallInst, serialiseCallInst)
     CUSTOM_INST_SERIALISE(I, BranchInst, serialiseBranchInst)
     CUSTOM_INST_SERIALISE(I, GetElementPtrInst, serialiseGetElementPtr)
-    CUSTOM_INST_SERIALISE(I, StoreInst, serialiseStore)
 
     // GENERIC_INST_SERIALISE and CUSTOM_INST_SERIALISE do an early return upon
     // a match, so if we get here then the instruction wasn't handled.
@@ -552,6 +552,8 @@ public:
     for (class Constant *&C : Constants) {
       serialiseConstant(C);
     }
+
+    // globals XXX
 
     // num_types:
     OutStreamer.emitSizeT(Types.size());
