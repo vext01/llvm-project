@@ -314,7 +314,7 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
         assert(Extras.size() <= 2);
         for (int64_t RHS : Extras) {
           if (RHS > 0) {
-            ExtraReg = getDwarfRegNum(RHS, TRI) + 1;
+            ExtraReg = RHS + 1;
           } else {
             Offset = RHS;
           }
