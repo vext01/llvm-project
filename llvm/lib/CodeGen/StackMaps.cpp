@@ -332,6 +332,9 @@ StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
           // Check if the other register also has a mapping and add it.
           if (SpillOffsets.count(RHS) > 0) {
             Offset = SpillOffsets[RHS];
+            if (Offset > 0) {
+              Offset = getDwarfRegNum(Offset, TRI) + 1;
+            }
           }
         }  else {
           // The other location is an offset.
