@@ -51,6 +51,7 @@
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Yk/BlockDisambiguate.h"
 #include "llvm/Transforms/Yk/ControlPoint.h"
+#include "llvm/Transforms/Yk/EliminateSelects.h"
 #include "llvm/Transforms/Yk/Linkage.h"
 #include "llvm/Transforms/Yk/ShadowStack.h"
 #include "llvm/Transforms/Yk/SplitBlocksAfterCalls.h"
@@ -1192,6 +1193,9 @@ bool TargetPassConfig::addISelPasses() {
     }
     addPass(createYkSplitBlocksAfterCallsPass());
   }
+
+  // XXX guard
+  addPass(createYkEliminateSelectsPass());
 
   if (YkInsertStackMaps) {
     addPass(createYkStackmapsPass(numberOfControlPoints));

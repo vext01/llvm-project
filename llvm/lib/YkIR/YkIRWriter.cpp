@@ -1372,6 +1372,7 @@ private:
 
   void serialiseSelectInst(SelectInst *I, FuncLowerCtxt &FLCtxt, unsigned BBIdx,
                            unsigned &InstIdx) {
+    llvm::report_fatal_error("Selects should be eliminated");
 
     // opcode:
     serialiseOpcode(OpCodeSelect);

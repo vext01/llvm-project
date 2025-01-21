@@ -9,6 +9,7 @@ add_llvm_component_library(LLVMYkPasses
   SplitBlocksAfterCalls.cpp
   BasicBlockTracer.cpp
   ModuleClone.cpp
+  EliminateSelects.cpp
 
   DEPENDS
   intrinsics_gen
