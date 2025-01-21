@@ -95,6 +95,7 @@ void UnreachableMachineBlockElim::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool UnreachableMachineBlockElim::runOnMachineFunction(MachineFunction &F) {
+  return false;
   df_iterator_default_set<MachineBasicBlock*> Reachable;
   bool ModifiedPHI = false;
 

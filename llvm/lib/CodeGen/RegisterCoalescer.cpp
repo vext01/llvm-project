@@ -4140,6 +4140,7 @@ bool RegisterCoalescer::runOnMachineFunction(MachineFunction &fn) {
   LLVM_DEBUG(dbgs() << "********** REGISTER COALESCER **********\n"
                     << "********** Function: " << fn.getName() << '\n');
 
+  return false; // XXX
   // Variables changed between a setjmp and a longjump can have undefined value
   // after the longjmp. This behaviour can be observed if such a variable is
   // spilled, so longjmp won't restore the value in the spill slot.

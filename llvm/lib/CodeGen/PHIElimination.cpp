@@ -152,7 +152,7 @@ bool PHIElimination::runOnMachineFunction(MachineFunction &MF) {
   bool Changed = false;
 
   // Split critical edges to help the coalescer.
-  if (!DisableEdgeSplitting && (LV || LIS)) {
+  if (false && !DisableEdgeSplitting && (LV || LIS)) {
     // A set of live-in regs for each MBB which is used to update LV
     // efficiently also with large functions.
     std::vector<SparseBitVector<>> LiveInSets;
