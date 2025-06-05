@@ -1849,6 +1849,24 @@ static bool needFuncLabels(const MachineFunction &MF) {
 void AsmPrinter::emitFunctionBody() {
   emitFunctionHeader();
 
+  // If this is the first function in the .yktext section, emit a section start
+  // marker.
+  //
+  // NOTE: This has to occur after emitFunctionHeader, otherwise the section
+  // doesn't exist yet.
+  if (!YkTextSection && MF->getFunction().getSection() == ".yktext") {
+    YkTextSection = MF->getSection();
+    assert(YkTextSection);
+    assert(YkTextSection->getName() == ".yktext");
+    assert(OutStreamer->getCurrentSectionOnly() == YkTextSection);
+    // OutStreamer->pushSection();
+    // OutStreamer->switchSection(YkTextSection);
+    MCSymbol *YkTextStartSym = OutContext.getOrCreateSymbol("ykllvm.yktext.start");
+    OutStreamer->emitSymbolAttribute(YkTextStartSym, llvm::MCSA_Global);
+    OutStreamer->emitLabel(YkTextStartSym);
+    // OutStreamer->popSection();
+  }
+
   // Emit target-specific gunk before the function body.
   emitFunctionBodyStart();
 
@@ -2765,6 +2783,17 @@ bool AsmPrinter::doFinalization(Module &M) {
           MCSymbolRefExpr::create(getSymbol(&GV), OutContext),
           MAI->getCodePointerSize());
     }
+  }
+
+  // XXX guard this
+  // Mark the end of the .yktext section if necessary.
+  if (YkTextSection) {
+    OutStreamer->pushSection();
+    OutStreamer->switchSection(YkTextSection);
+    MCSymbol *YkTextEndSym = OutContext.getOrCreateSymbol("ykllvm.yktext.stop");
+    OutStreamer->emitSymbolAttribute(YkTextEndSym, llvm::MCSA_Global);
+    OutStreamer->emitLabel(YkTextEndSym);
+    OutStreamer->popSection();
   }
 
   // Allow the target to emit any magic that it wants at the end of the file,

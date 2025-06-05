@@ -245,6 +245,9 @@ private:
   /// runtime and we've emitted at least one entry.
   bool YkEmittedFirstBBAddrMap = false;
 
+  /// XXX
+  MCSection *YkTextSection = nullptr;
+
   /// The last `.llvm_bb_addr_map` section fragment that we handled (if any).
   MCSection *YkLastBBAddrMapSection = nullptr;
 

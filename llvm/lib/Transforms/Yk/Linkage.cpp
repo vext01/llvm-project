@@ -22,6 +22,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/Yk/ControlPoint.h"
 
 #define DEBUG_TYPE "yk-linkage"
 
@@ -43,6 +44,11 @@ public:
     for (Function &F : M) {
       if (F.hasInternalLinkage()) {
         F.setLinkage(GlobalVariable::ExternalLinkage);
+      }
+
+      if ((!F.hasFnAttribute("yk_outline") || containsControlPoint(F)) && !F.isDeclaration()) {
+        F.setSection(".yktext");
+        errs() << "into yktext sec: " << F.getName() << "\n";
       }
     }
     return true;
