@@ -43,6 +43,7 @@ const int PPArgIdxNumTargetArgs = 3;
 const uint8_t YkFuncFlagOutline = 1;
 const uint8_t YkFuncFlagIdempotent = 2;
 const uint8_t YkFuncFlagInlineIndirect = 4;
+const uint8_t YkFuncFlagNoCallback = 8;
 
 #include <sstream>
 
@@ -1768,6 +1769,9 @@ private:
     }
     if (F.hasFnAttribute(YK_INDIRECT_INLINE_FNATTR)) {
       Flags |= YkFuncFlagInlineIndirect;
+    }
+    if (F.hasFnAttribute("yk_no_callback")) { // XXX
+      Flags |= YkFuncFlagNoCallback;
     }
     OutStreamer.emitInt8(Flags);
   }

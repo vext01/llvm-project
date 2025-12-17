@@ -222,6 +222,18 @@ unsigned llvm::getDwarfRegNum(unsigned Reg, const TargetRegisterInfo *TRI) {
   return (unsigned)RegNum;
 }
 
+/// This is fallible verion of getDwarfRegNum() above. Returns < 0 if the register has no
+/// DWARF number, e.g. the X86_64 SSP register.
+static int getDwarfRegNumFallible(unsigned Reg, const TargetRegisterInfo *TRI) {
+  int RegNum;
+  for (MCPhysReg SR : TRI->superregs_inclusive(Reg)) {
+    RegNum = TRI->getDwarfRegNum(SR, false);
+    if (RegNum >= 0)
+      break;
+  }
+  return RegNum;
+}
+
 MachineInstr::const_mop_iterator
 StackMaps::parseOperand(MachineInstr::const_mop_iterator MOI,
                         MachineInstr::const_mop_iterator MOE,
@@ -423,9 +435,12 @@ void StackMaps::print(raw_ostream &OS) {
 }
 
 /// Create a live-out register record for the given register Reg.
-StackMaps::LiveOutReg
+std::optional<StackMaps::LiveOutReg>
 StackMaps::createLiveOutReg(unsigned Reg, const TargetRegisterInfo *TRI) const {
-  unsigned DwarfRegNum = getDwarfRegNum(Reg, TRI);
+  int DwarfRegNum = getDwarfRegNumFallible(Reg, TRI);
+  if (DwarfRegNum < 0) {
+    return std::nullopt;
+  }
   unsigned Size = TRI->getSpillSize(*TRI->getMinimalPhysRegClass(Reg));
   return LiveOutReg(Reg, DwarfRegNum, Size);
 }
@@ -440,8 +455,12 @@ StackMaps::parseRegisterLiveOutMask(const uint32_t *Mask) const {
 
   // Create a LiveOutReg for each bit that is set in the register mask.
   for (unsigned Reg = 0, NumRegs = TRI->getNumRegs(); Reg != NumRegs; ++Reg)
-    if ((Mask[Reg / 32] >> (Reg % 32)) & 1)
-      LiveOuts.push_back(createLiveOutReg(Reg, TRI));
+    if ((Mask[Reg / 32] >> (Reg % 32)) & 1) {
+      std::optional<StackMaps::LiveOutReg> LO = createLiveOutReg(Reg, TRI);
+      if (LO.has_value()) {
+        LiveOuts.push_back(LO.value());
+      }
+    }
 
   // We don't need to keep track of a register if its super-register is already
   // in the list. Merge entries that refer to the same dwarf register and use

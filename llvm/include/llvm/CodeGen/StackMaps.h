@@ -337,7 +337,7 @@ private:
                             LiveVarsVec &LiveVars, LiveOutVec &LiveOuts);
 
   /// Create a live-out register record for the given register @p Reg.
-  LiveOutReg createLiveOutReg(unsigned Reg,
+  std::optional<LiveOutReg> createLiveOutReg(unsigned Reg,
                               const TargetRegisterInfo *TRI) const;
 
   /// Parse the register live-out mask and return a vector of live-out
